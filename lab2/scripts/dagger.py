@@ -31,7 +31,7 @@ from utils.plot import plot_3d_positions
 from utils.collect_demo_high_freq import policy
 
 # You can point this import at the student BC file if desired:
-from scripts.bc import *  # contains: load_data_by_episode, compute_norm_stats, normalize, BCPolicy, evaluate
+from scripts.bc import load_data_by_episode, compute_norm_stats, normalize, BCPolicy, evaluate
 
 
 def train_bc_on_arrays(
@@ -40,6 +40,7 @@ def train_bc_on_arrays(
     epochs=200,
     batch_size=256,
     lr=1e-3,
+    apdx = ""
 ):
     """
     (Re)train a BC policy on provided (already-flattened) arrays.
@@ -79,6 +80,10 @@ def train_bc_on_arrays(
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
 
+    test_loss_arr = []
+    train_loss_arr = []
+    epoch_array = []
+
     # TODO: training loop
     for ep in range(1, epochs+1):
         model.train()
@@ -97,13 +102,18 @@ def train_bc_on_arrays(
         if ep % 5 == 0 or ep == 1:
             train_mse = evaluate(model, train_loader, device)
             test_mse = evaluate(model, test_loader, device)
+            train_loss_arr.append(train_mse.cpu().item())
+            test_loss_arr.append(test_mse.cpu().item())
+            epoch_array.append(ep)
             print(
                 f"Epoch {ep:03d} | "
                 f"Train MSE: {train_mse:.6f} | "
                 f"Test MSE: {test_mse:.6f}"
             )
     #raise NotImplementedError
-
+    np.save("train_array"+ apdx +".npy",np.array(train_loss_arr))
+    np.save("test_array"+ apdx +".npy",np.array(test_loss_arr))
+    np.save("epoch_array"+ apdx +".npy",np.array(epoch_array))
     return model, (X_mean, X_std, Y_mean, Y_std)
 
 
@@ -134,7 +144,7 @@ def rollout_dagger_collect(
 
     for ep in range(episodes):
         # Home & randomize start (kept as-is)
-        code, initial_joints = arm.mean, X_std = compute_norm_stats()# TODget_initial_point() #FIX THIS, DAGGER DOESN'T WORK
+        code, initial_joints = arm.get_initial_point()
         arm.set_servo_angle(angle=initial_joints, speed=20.0, wait=True, is_radian=False)
 
         pose = get_tcp_pose(arm)
@@ -228,24 +238,24 @@ def main():
     parser.add_argument("--data", default="asset/demo_high_freq.npz")
 
     # BC training params
-    parser.add_argument("--epochs", type=int, default=1000)
+    parser.add_argument("--epochs", type=int, default=2000)#4000)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--test-frac", type=float, default=0.1)
     parser.add_argument("--mean, X_std = compute_norm_stats(Xtr)# TODseed", type=int, default=42)
 
     # robot / inference params
-    parser.add_argument("--ip", required=True)
+    parser.add_argument("--ip", default = "192.168.1.205")
     parser.add_argument("--out", default="asset/inf.npz")
-    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--obs_horizon", type=int, default=1)
     parser.add_argument("--inf_steps", type=int, default=200)
 
     # dagger params
-    parser.add_argument("--dagger-iters", type=int, default=1)
-    parser.add_argument("--dagger-rollout-episodes", type=int, default=5)
+    parser.add_argument("--dagger-iters", type=int, default=2)
+    parser.add_argument("--dagger-rollout-episodes", type=int, default=4)
     parser.add_argument("--beta0", type=float, default=1.0)
-    parser.add_argument("--beta-decay", type=float, default=0.8)  # beta_k = beta0 * decay^k
+    parser.add_argument("--beta-decay", type=float, default=0.85)  # beta_k = beta0 * decay^k
 
     parser.add_argument("--seed", type=int, default=42)
 
@@ -267,7 +277,12 @@ def main():
         print(f"Train samples: {len(Xtr0)} | Test samples: {len(Xte0)}")
 
         # TODO: train initial BC on demonstrations using train_bc_on_arrays
-        model, (X_mean, X_std, Y_mean, Y_std) = train_bc_on_arrays(Xtr0, Ytr0, Xte0, Yte0, device)  # TODO
+        model, (X_mean, X_std, Y_mean, Y_std) = train_bc_on_arrays(Xtr0, Ytr0, Xte0, Yte0, device,
+            epochs=args.epochs,
+            batch_size=args.batch_size,
+            lr=args.lr,
+            apdx="_BC_"
+        )
         #raise NotImplementedError
 
         # TODO (optional): save model and normalization
@@ -288,12 +303,15 @@ def main():
 
         # Initial train
         print("[DAgger] Initial BC training on demonstrations...")
+        print("Xtr_agg",Xtr_agg.shape)
+        print("Ytr_agg",Ytr_agg.shape)
         model, (X_mean, X_std, Y_mean, Y_std) = train_bc_on_arrays(
             Xtr_agg, Ytr_agg, Xte, Yte,
             device=device,
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            apdx="_Dagger_0_"
         )
 
         arm = connect_arm(ArmConfig(ip=args.ip))
@@ -304,6 +322,8 @@ def main():
             arm.set_gripper_mode(0)
             arm.set_gripper_enable(True)
             arm.set_gripper_speed(5000)
+
+            #print(args.dagger_iters)
 
             for k in range(args.dagger_iters):
                 beta = args.beta0 * (args.beta_decay ** k)
@@ -316,6 +336,8 @@ def main():
                 # - aggregate X_new/Y_new into Xtr_agg/Ytr_agg
                 Xtr_agg = np.concatenate([Xtr_agg, X_new],axis=0)
                 Ytr_agg = np.concatenate([Ytr_agg, Y_new],axis=0)
+                print("Xtr_agg",Xtr_agg.shape)
+                print("Ytr_agg",Ytr_agg.shape)
 
                 # - retrain using train_bc_on_arrays on aggregated dataset
                 model, (X_mean, X_std, Y_mean, Y_std) = train_bc_on_arrays(
@@ -324,6 +346,7 @@ def main():
                     epochs=args.epochs,
                     batch_size=args.batch_size,
                     lr=args.lr,
+                    apdx="_Dagger_"+str(k+1)+"_"
                 )
                 # - save artifacts each iteration (optional)
                 #raise NotImplementedError
@@ -392,7 +415,7 @@ def main():
                     
                     # update buffer
                     obs_buffer.append(state)
-                    if len(obs_buffer) < obs_horizon: continue
+                    if len(obs_buffer) < args.obs_horizon: continue
 
                     # stack
                     obs_stack = np.concatenate(list(obs_buffer), axis=0).astype(np.float32)

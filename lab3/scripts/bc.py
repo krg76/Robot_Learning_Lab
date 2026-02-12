@@ -3,34 +3,18 @@ import torch.nn as nn
 from tqdm import tqdm
 from robomimic.models.obs_nets import ObservationEncoder
 from robomimic.utils.tensor_utils import time_distributed
-
+import torch.nn.functional as F
 from scripts.dataset import make_loaders
-
 
 class Conv1dBlock(nn.Module):
     def __init__(self, inp, out, k=3, n_groups=8):
         super().__init__()
-        """
-        TODO:
-        - 1D convolution with padding
-        - normalization (GroupNorm)
-        - nonlinearity
-        """
-        #raise NotImplementedError
-        self.model = nn.Sequential(
-            nn.Conv1d(inp,out,k,padding=k//2),
-            nn.GroupNorm(n_groups,out),
+        self.net = nn.Sequential(
+            nn.Conv1d(inp, out, k, padding=k//2),
+            nn.GroupNorm(n_groups, out),
             nn.Mish()
         )
-
-
-    def forward(self, x):
-        """
-        TODO:
-        - apply the block to input x
-        """
-        return self.model(x)
-        #raise NotImplementedError
+    def forward(self, x): return self.net(x)
 
 
 def swap_bn_to_gn(module: nn.Module, max_groups: int = 32):
@@ -41,7 +25,6 @@ def swap_bn_to_gn(module: nn.Module, max_groups: int = 32):
         else:
             swap_bn_to_gn(child, max_groups)
     return module
-
 
 class BCConvMLPPolicy(nn.Module):
     """
@@ -75,21 +58,15 @@ class BCConvMLPPolicy(nn.Module):
         self.image_type = image_type
 
         if img_backbone_kwargs is None:
-            """
-            TODO:
-            - define img_backbone_kwargs for VisualCore, read robomimic documentation: https://robomimic.github.io/docs/modules/models.html
-            - must specify input_shape, backbone, pooling, and feature dimension
-            """
             img_backbone_kwargs = {
-                "input_shape": [3,96,96],
-                "backbone_class": "ResNet18Conv",  # use ResNet18 as the visualcore backbone
-                "backbone_kwargs": {"pretrained": False, "input_coord_conv": False},
-                "pool_class": "SpatialSoftmax",  # use spatial softmax to regularize the model output
-                "pool_kwargs": {"num_kp": 32}
+                "input_shape": [3, 96, 96],
+                "backbone_class": "ResNet18Conv",
+                "backbone_kwargs": {"pretrained": True, "input_coord_conv": False},
+                "pool_class": "SpatialSoftmax",
+                "pool_kwargs": {"num_kp": 32},
+                "feature_dimension": img_feat_dim,
             }
-            #raise NotImplementedError
-            
-        img_backbone_kwargs["feature_dimension"] = img_feat_dim
+        img_feat_dim = img_backbone_kwargs["feature_dimension"]
 
         # --- encoders (robomimic) ---
         self.obs_encoder = ObservationEncoder(feature_activation=nn.ReLU)
@@ -101,14 +78,8 @@ class BCConvMLPPolicy(nn.Module):
         self.obs_encoder.make()
 
         if image_type == "both":
-            """
-            TODO:
-            - decide whether to replace BatchNorm with GroupNorm in visual backbones
-            - justify your choice for small-batch BC
-            """
             swap_bn_to_gn(self.obs_encoder.obs_nets["external"])
             swap_bn_to_gn(self.obs_encoder.obs_nets["wrist"])
-            #swap_bn_to_gn(self.obs_encoder)
 
         # per-timestep feature dim
         per_t = obs_dim + (2 * img_feat_dim if image_type == "both" else 0)
@@ -126,28 +97,72 @@ class BCConvMLPPolicy(nn.Module):
             nn.Linear(mlp_hidden, pred_horizon * action_dim),
         )
 
+    def _random_crop_96_bhchw(self, x, crop_hw=(96, 96)):
+        """
+        x: (B, T, 3, H, W)
+        Returns: (B, T, 3, 96, 96)
+        """
+        B, T, C, H, W = x.shape
+        device = x.device
+        ch, cw = crop_hw
+
+        if H < ch or W < cw:
+            raise ValueError(f"Image too small for crop {crop_hw}, got {(H,W)}")
+
+        max_y = H - ch
+        max_x = W - cw
+
+        # random top-left per sample
+        y0 = torch.randint(0, max_y + 1, (B,), device=device)
+        x0 = torch.randint(0, max_x + 1, (B,), device=device)
+
+        crops = []
+        for b in range(B):
+            crops.append(
+                x[b, :, :, y0[b]:y0[b] + ch, x0[b]:x0[b] + cw]
+            )  # (T,3,96,96)
+
+        return torch.stack(crops, dim=0)
+
+    def _center_crop_96_bhchw(self, x, crop_hw=(96, 96)):
+        """
+        x: (B, T, 3, H, W)
+        Returns: (B, T, 3, 96, 96)
+        """
+        B, T, C, H, W = x.shape
+        ch, cw = crop_hw
+
+        if H < ch or W < cw:
+            raise ValueError(f"Image too small for crop {crop_hw}, got {(H,W)}")
+
+        y0 = (H - ch) // 2
+        x0 = (W - cw) // 2
+
+        return x[:, :, :, y0:y0+ch, x0:x0+cw]
+
     def forward(self, obs_state, obs_image=None, obs_wrist_image=None):
-        """
-        TODO:
-        - encode visual observations (if enabled), use "time_distributed" function from robomimic
-        - concatenate state + image features per timestep
-        """
-        b = obs_state.shape[0]
-        #print(obs_state.shape, obs_enc.shape, w_enc.shape)
+        feats = [obs_state]  # (B,Hobs,obs_dim)
+
         if self.image_type == "both":
-            #print("obs_imag", obs_image.shape)
-            obs_enc = time_distributed(obs_image,self.obs_encoder.obs_nets["external"], )
-            w_enc = time_distributed(obs_wrist_image,self.obs_encoder.obs_nets["wrist"])
-            #obs_enc = self.obs_encoder["external"](obs_image)
-            #w_enc = self.obs_encoder["wrist"](obs_wrist_image)
-            #print(obs_state.shape, obs_enc.shape, w_enc.shape)
-            obs_state = torch.concatenate([obs_state,obs_enc,w_enc],dim=-1)
-        temp = self.temporal(obs_state.transpose(1,2))
-        temp2 = torch.mean(temp,dim=-1)
-        temp3 = self.head(temp2)
-        #return self.head(temp).reshape((b,self.pred_horizon,-1))
-        return torch.reshape(temp3,(b,self.pred_horizon,-1))
-        #raise NotImplementedError
+
+            if self.training:
+                obs_image = self._random_crop_96_bhchw(obs_image, crop_hw=(96, 96))
+                obs_wrist_image = self._random_crop_96_bhchw(obs_wrist_image, crop_hw=(96, 96))
+            else:
+                obs_image = self._center_crop_96_bhchw(obs_image)
+                obs_wrist_image = self._center_crop_96_bhchw(obs_wrist_image)
+            ext = time_distributed(obs_image, self.obs_encoder.obs_nets["external"], inputs_as_kwargs=False)
+            wst = time_distributed(obs_wrist_image, self.obs_encoder.obs_nets["wrist"], inputs_as_kwargs=False)
+            feats += [ext, wst]  # each (B,Hobs,img_feat_dim)
+
+        x = torch.cat(feats, dim=-1)      # (B,Hobs,per_t)
+        x = x.transpose(1, 2)             # (B,per_t,Hobs)
+
+        x = self.temporal(x)              # (B,conv_channels,Hobs)
+        x = x.mean(dim=-1)                # (B,conv_channels)  global pool over time
+
+        y = self.head(x)                  # (B,Hpred*action_dim)
+        return y.view(x.shape[0], self.pred_horizon, self.action_dim)
 
 def train_bc(model, train_loader, test_loader, device="cuda", lr=1e-4, wd=1e-6, epochs=30):
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
@@ -164,15 +179,9 @@ def train_bc(model, train_loader, test_loader, device="cuda", lr=1e-4, wd=1e-6, 
             obs_wimg = b.get("obs_wrist_image", None)
             if obs_img is not None:  obs_img = obs_img.to(device)
             if obs_wimg is not None: obs_wimg = obs_wimg.to(device)
-                
-            """
-            TODO:
-            - run policy forward pass
-            - compute behavior cloning loss
-            """
-            #raise NotImplementedError
-            pred = model(obs_state,obs_img,obs_wimg)
-            loss = loss_fn(pred,tgt)
+
+            pred = model(obs_state, obs_img, obs_wimg)
+            loss = loss_fn(pred, tgt)
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
@@ -195,15 +204,9 @@ def train_bc(model, train_loader, test_loader, device="cuda", lr=1e-4, wd=1e-6, 
                 obs_wimg = b.get("obs_wrist_image", None)
                 if obs_img is not None:  obs_img = obs_img.to(device)
                 if obs_wimg is not None: obs_wimg = obs_wimg.to(device)
-                    
-                """
-                TODO:
-                - forward pass without gradients
-                - accumulate validation loss
-                """
-                pred = model(obs_state,obs_img,obs_wimg)
-                loss = loss_fn(pred,tgt)
-                #raise NotImplementedError
+
+                pred = model(obs_state, obs_img, obs_wimg)
+                loss = loss_fn(pred, tgt)
 
                 bs = obs_state.size(0)
                 te += loss.item() * bs
@@ -224,10 +227,10 @@ def save_model(path, model, stats, model_kwargs):
 if __name__ == "__main__":
 
     train_loader, test_loader, stats = make_loaders(
-        "/home/kyle_golobish/Desktop/Robot_learning/xarm_lift_data",
+        "/home/robot-lab/Downloads/xarm_lift_data",
         obs_h=1,
         pred_h=16,
-        batch_size=16,
+        batch_size=64,
         include_images=True,
         test_ratio=0.1,
         num_workers=0
@@ -238,14 +241,14 @@ if __name__ == "__main__":
     model_kwargs = dict(
         action_dim=8,
         obs_dim=8,
-        obs_horizon=1,
+        obs_horizon=1   ,
         pred_horizon=16,
         image_type="both",
     )
 
     model = BCConvMLPPolicy(**model_kwargs).to(device)
 
-    train_bc(model, train_loader, test_loader, device=device, lr=1e-4, wd=1e-8, epochs=50)
+    train_bc(model, train_loader, test_loader, device=device, epochs=10)
 
     save_model(
         "asset/checkpoints/bcconv_final.pt",

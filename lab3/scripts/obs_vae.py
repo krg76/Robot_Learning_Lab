@@ -75,6 +75,49 @@ class ObservationVAE(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden, input_dim),
         )
+    
+    def _random_crop_96_bhchw(self, x, crop_hw=(96, 96)):
+        """
+        x: (B, T, 3, H, W)
+        Returns: (B, T, 3, 96, 96)
+        """
+        B, T, C, H, W = x.shape
+        device = x.device
+        ch, cw = crop_hw
+
+        if H < ch or W < cw:
+            raise ValueError(f"Image too small for crop {crop_hw}, got {(H,W)}")
+
+        max_y = H - ch
+        max_x = W - cw
+
+        # random top-left per sample
+        y0 = torch.randint(0, max_y + 1, (B,), device=device)
+        x0 = torch.randint(0, max_x + 1, (B,), device=device)
+
+        crops = []
+        for b in range(B):
+            crops.append(
+                x[b, :, :, y0[b]:y0[b] + ch, x0[b]:x0[b] + cw]
+            )  # (T,3,96,96)
+
+        return torch.stack(crops, dim=0)
+
+    def _center_crop_96_bhchw(self, x, crop_hw=(96, 96)):
+        """
+        x: (B, T, 3, H, W)
+        Returns: (B, T, 3, 96, 96)
+        """
+        B, T, C, H, W = x.shape
+        ch, cw = crop_hw
+
+        if H < ch or W < cw:
+            raise ValueError(f"Image too small for crop {crop_hw}, got {(H,W)}")
+
+        y0 = (H - ch) // 2
+        x0 = (W - cw) // 2
+
+        return x[:, :, :, y0:y0+ch, x0:x0+cw]
 
     def encode_obs(self, obs_state, obs_image=None, obs_wrist_image=None):
         """
@@ -82,10 +125,17 @@ class ObservationVAE(nn.Module):
         """
         feats = [obs_state]  # (B,H,obs_dim)
 
-        if self.image_type == "both" and obs_image is not None and obs_wrist_image is not None:
-            ext_feat = time_distributed(obs_image, self.obs_encoder.obs_nets["external"], inputs_as_kwargs=False)
-            wst_feat = time_distributed(obs_wrist_image, self.obs_encoder.obs_nets["wrist"], inputs_as_kwargs=False)
-            feats += [ext_feat, wst_feat]
+        if self.image_type == "both":
+
+            if self.training:
+                obs_image = self._random_crop_96_bhchw(obs_image, crop_hw=(96, 96))
+                obs_wrist_image = self._random_crop_96_bhchw(obs_wrist_image, crop_hw=(96, 96))
+            else:
+                obs_image = self._center_crop_96_bhchw(obs_image)
+                obs_wrist_image = self._center_crop_96_bhchw(obs_wrist_image)
+            ext = time_distributed(obs_image, self.obs_encoder.obs_nets["external"], inputs_as_kwargs=False)
+            wst = time_distributed(obs_wrist_image, self.obs_encoder.obs_nets["wrist"], inputs_as_kwargs=False)
+            feats += [ext, wst]  # each (B,Hobs,img_feat_dim)
 
         x = torch.cat(feats, dim=-1)  # (B,H,input_dim)
         return x
@@ -126,15 +176,15 @@ class ObservationVAE(nn.Module):
 
         # ---- Step 1: Encode observations into latent parameters ----
         # TODO: call self.encode() with obs_state + images to get mu and logvar
-        mu, logvar = None, None
+        mu, logvar = self.encode(obs_state,obs_image=obs_image,obs_wrist_image=obs_wrist_image)
 
         # ---- Step 2: Reparameterization trick ----
         # TODO: sample z ~ N(mu, sigma^2) using self.reparam()
-        z = None
+        z = self.reparam(mu, logvar)
 
         # ---- Step 3: Decode latent z to reconstruct observation ----
         # TODO: call self.decode(z) to get obs_hat
-        obs_hat = None
+        obs_hat = self.decode(z)
 
         # ---- Step 4: Return latent + reconstruction ----
         return z, obs_hat, mu, logvar
@@ -289,15 +339,15 @@ def train_bc_to_latent(policy, obs_vae, train_loader, test_loader, device="cuda"
             # ---- Step X: Compute target latent embedding ----
             # TODO: Use the frozen ObservationVAE to encode obs_state + images
             #       and get mu (mean of latent distribution) as the target z_tgt
-            z_tgt = None  # replace None with obs_vae.encode(...)
+            z_tgt = obs_vae.encode(obs_state,obs_img,obs_wimg)  # replace None with obs_vae.encode(...)
 
             # ---- Step Y: Predict latent embedding from BC policy ----
             # TODO: Feed obs_state + images to your policy to get z_pred
-            z_pred = None  # replace None with policy(...)
+            z_pred = policy(obs_state,obs_img,obs_wimg)  # replace None with policy(...)
 
             # ---- Step Z: Compute MSE loss between predicted and target latent ----
             # TODO: Use nn.MSELoss or functional.mse_loss to compute loss between z_pred and z_tgt
-            loss = None  # replace None with computed loss
+            loss = loss_fn(z_tgt,z_pred)  # replace None with computed loss
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
@@ -321,15 +371,15 @@ def train_bc_to_latent(policy, obs_vae, train_loader, test_loader, device="cuda"
                 # ---- Step X: Compute target latent embedding ----
                 # TODO: Use the frozen ObservationVAE to encode obs_state + images
                 #       and get mu (mean of latent distribution) as the target z_tgt
-                z_tgt = None  # replace None with obs_vae.encode(...)
+                z_tgt = obs_vae.encode(obs_state,obs_img,obs_wimg)  # replace None with obs_vae.encode(...)
 
                 # ---- Step Y: Predict latent embedding from BC policy ----
                 # TODO: Feed obs_state + images to your policy to get z_pred
-                z_pred = None  # replace None with policy(...)
+                z_pred = policy(obs_state,obs_img,obs_wimg)  # replace None with policy(...)
 
                 # ---- Step Z: Compute MSE loss between predicted and target latent ----
                 # TODO: Use nn.MSELoss or functional.mse_loss to compute loss between z_pred and z_tgt
-                loss = None  # replace None with computed loss
+                loss = loss_fn(z_tgt,z_pred)  # replace None with computed loss
 
                 te += loss.item() * obs_state.size(0)
                 n += obs_state.size(0)
@@ -406,7 +456,7 @@ def main():
     # build action encoder (AE or VAE)
     # -----------------------------
     action_ae_kwargs = dict(action_dim=args.action_dim, z_dim=args.z_dim, hidden=args.ae_hidden)
-    action_ae = ObservationVAE(**action_ae_kwargs).to(device)
+    obs_vae = ObservationVAE(**action_ae_kwargs).to(device)
 
     # -----------------------------
     # mode dispatch

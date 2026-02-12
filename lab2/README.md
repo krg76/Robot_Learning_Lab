@@ -211,7 +211,29 @@ Record EEF state trajectories using plot_3d_positions.
 
 ### What to Record and Report
 * Aggregated dataset size after each DAgger iteration.
+
+Iter 0:
+    Xtr_agg (803, 8)
+    Ytr_agg (803, 8)
+
+Iter 1:
+    Xtr_agg (1315, 8)
+    Ytr_agg (1315, 8)
+
+Iter 2:
+    Xtr_agg (1868, 8)
+    Ytr_agg (1868, 8)
+
+Iter 3:
+    Xtr_agg (2409, 8)
+    Ytr_agg (2409, 8)
+
+Iter 4:
+    Xtr_agg (3090, 8)
+    Ytr_agg (3090, 8)
+
 * Training and test loss curves across iterations.
+
 * Comparison of robot motion: BC vs DAgger.
 * Are movements smoother?
 * Does DAgger reduce deviations in states outside the original demonstration distribution?

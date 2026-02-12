@@ -92,11 +92,11 @@ class UniversalPolicy:
 
         base_rgb_norm = (base_rgb - img_mean)/img_std
 
-        base_rgb_norm = crop(base_rgb_norm)
+        #base_rgb_norm = crop(base_rgb_norm)
 
         wrist_rgb_norm = (wrist_rgb - wimg_mean)/wimg_std
 
-        wrist_rgb_norm = crop(wrist_rgb_norm)
+        #wrist_rgb_norm = crop(wrist_rgb_norm)
 
         #print(base_rgb_norm.shape, wrist_rgb_norm.shape)
 

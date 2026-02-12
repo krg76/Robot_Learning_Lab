@@ -105,11 +105,21 @@ then a VAE becomes a regular AE.
 
 Create a **3×3 table**:
 
+action VAE (Train/Test)
+                                 128     256       512 <-- AE hidden dim
 | Latent Dim ↓ / Model Size → | Small | Medium | Large |
 |-----------------------------|-------|--------|-------|
-| Low dim                     |       |        |       |
-| Mid dim                     |       |        |       |
-| High dim                    |       |        |       |
+| Low dim 6                   |0.068533/0.068533|0.062207/0.068533|       |
+| Mid dim 9                   |       |        |       |
+| High dim 12                 |       |        |       |
+
+Ob VAE
+                                 128     256       512 <-- AE hidden dim
+| Latent Dim ↓ / Model Size → | Small | Medium | Large |
+|-----------------------------|-------|--------|-------|
+| Low dim 6                   |       |        |       |
+| Mid dim 9                   |       |        |       |
+| High dim 12                 |       |        |       |
 
 Report:
 - Training reconstruction loss

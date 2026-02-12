@@ -21,7 +21,7 @@ from xarm_lab.arm_utils import (
     connect_arm, disconnect_arm, ArmConfig,
     get_joint_angles, get_tcp_pose, get_gripper_position
 )
-         
+from utils.plot import plot_3d_positions
 from xarm_lab.safety import enable_basic_safety, clear_faults
 from xarm_lab.kinematics import ik_from_pose
 # from utils.plot import plot_3d_positions
@@ -190,7 +190,7 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--test-frac", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--ip", required=True)
+    parser.add_argument("--ip", default = "192.168.1.205")
     parser.add_argument("--out", default="asset/inf.npz")
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--obs_horizon", type=int, default=1)
@@ -329,7 +329,7 @@ def main():
                     is_radian=False
                 )
                 pose = get_tcp_pose(arm)
-                pose[:3] += np.random.uniform(-5, 5, size=3)
+                pose[:3] += np.random.uniform(-50, 50, size=3)
                 joint_angles = ik_from_pose(arm, pose)
                 arm.set_servo_angle(
                     angle=joint_angles,
@@ -358,7 +358,6 @@ def main():
                     g = get_gripper_position(arm)          # TODO
                     state = np.concatenate([q, [g]])      # TODO
                     eef_state = get_tcp_pose(arm)  # TODO
-tr 
                     # TODO: obs_buffer.append(state)
                     # TODO: if len(obs_buffer) < obs_horizon: continue
                     #raise NotImplementedError

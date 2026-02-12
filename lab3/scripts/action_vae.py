@@ -257,6 +257,49 @@ class BCConvMLPPolicyLatent(nn.Module):
             nn.Linear(mlp_hidden, pred_horizon * z_dim),
         )
 
+    def _random_crop_96_bhchw(self, x, crop_hw=(96, 96)):
+        """
+        x: (B, T, 3, H, W)
+        Returns: (B, T, 3, 96, 96)
+        """
+        B, T, C, H, W = x.shape
+        device = x.device
+        ch, cw = crop_hw
+
+        if H < ch or W < cw:
+            raise ValueError(f"Image too small for crop {crop_hw}, got {(H,W)}")
+
+        max_y = H - ch
+        max_x = W - cw
+
+        # random top-left per sample
+        y0 = torch.randint(0, max_y + 1, (B,), device=device)
+        x0 = torch.randint(0, max_x + 1, (B,), device=device)
+
+        crops = []
+        for b in range(B):
+            crops.append(
+                x[b, :, :, y0[b]:y0[b] + ch, x0[b]:x0[b] + cw]
+            )  # (T,3,96,96)
+
+        return torch.stack(crops, dim=0)
+
+    def _center_crop_96_bhchw(self, x, crop_hw=(96, 96)):
+        """
+        x: (B, T, 3, H, W)
+        Returns: (B, T, 3, 96, 96)
+        """
+        B, T, C, H, W = x.shape
+        ch, cw = crop_hw
+
+        if H < ch or W < cw:
+            raise ValueError(f"Image too small for crop {crop_hw}, got {(H,W)}")
+
+        y0 = (H - ch) // 2
+        x0 = (W - cw) // 2
+
+        return x[:, :, :, y0:y0+ch, x0:x0+cw]
+
     def forward(self, obs_state, obs_image=None, obs_wrist_image=None):
         """
         TODO:
@@ -266,14 +309,20 @@ class BCConvMLPPolicyLatent(nn.Module):
         - predict latent sequence
         """
         b = obs_state.shape[0]
-        #print(obs_state.shape, obs_enc.shape, w_enc.shape)
+        feats = [obs_state]  # (B,Hobs,obs_dim)
+
         if self.image_type == "both":
-            #
-            obs_enc = time_distributed(obs_image,self.obs_encoder.obs_nets["external"], )
-            w_enc = time_distributed(obs_wrist_image,self.obs_encoder.obs_nets["wrist"])
-            #
-            obs_state = torch.concatenate([obs_state,obs_enc,w_enc],dim=-1)
-        temp = self.temporal(obs_state.transpose(1,2))
+
+            if self.training:
+                obs_image = self._random_crop_96_bhchw(obs_image, crop_hw=(96, 96))
+                obs_wrist_image = self._random_crop_96_bhchw(obs_wrist_image, crop_hw=(96, 96))
+            else:
+                obs_image = self._center_crop_96_bhchw(obs_image)
+                obs_wrist_image = self._center_crop_96_bhchw(obs_wrist_image)
+            ext = time_distributed(obs_image, self.obs_encoder.obs_nets["external"], inputs_as_kwargs=False)
+            wst = time_distributed(obs_wrist_image, self.obs_encoder.obs_nets["wrist"], inputs_as_kwargs=False)
+            feats += [ext, wst]  # each (B,Hobs,img_feat_dim)
+        temp = self.temporal(feats.transpose(1,2))
         temp2 = torch.mean(temp,dim=-1)
         temp3 = self.head(temp2)
         #return self.head(temp).reshape((b,self.pred_horizon,-1))
@@ -390,11 +439,11 @@ def main():
     p.add_argument("--obs_dim", type=int, default=8)
     p.add_argument("--image_type", type=str, default="both", choices=["both", "none"])
 
-    p.add_argument("--ae_hidden", type=int, default=256)
+    p.add_argument("--ae_hidden", type=int, default=128)
     p.add_argument("--ae_epochs", type=int, default=5)
     p.add_argument("--bc_epochs", type=int, default=2)
 
-    p.add_argument("--vae_beta", type=float, default=1e-3)
+    p.add_argument("--vae_beta", type=float, default=1e-1)#1e-3)
     p.add_argument("--vae_lr", type=float, default=1e-3)
     p.add_argument("--vae_wd", type=float, default=1e-6)
 
