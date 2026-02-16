@@ -322,6 +322,7 @@ class BCConvMLPPolicyLatent(nn.Module):
             ext = time_distributed(obs_image, self.obs_encoder.obs_nets["external"], inputs_as_kwargs=False)
             wst = time_distributed(obs_wrist_image, self.obs_encoder.obs_nets["wrist"], inputs_as_kwargs=False)
             feats += [ext, wst]  # each (B,Hobs,img_feat_dim)
+        feats = torch.cat(feats, dim=-1) 
         temp = self.temporal(feats.transpose(1,2))
         temp2 = torch.mean(temp,dim=-1)
         temp3 = self.head(temp2)
@@ -434,17 +435,17 @@ def main():
     p.add_argument("--test_ratio", type=float, default=0.1)
     p.add_argument("--num_workers", type=int, default=0)
 
-    p.add_argument("--z_dim", type=int, default=6)
+    p.add_argument("--z_dim", type=int, default=12) #<---- CHANGE! 
     p.add_argument("--action_dim", type=int, default=8)
     p.add_argument("--obs_dim", type=int, default=8)
     p.add_argument("--image_type", type=str, default="both", choices=["both", "none"])
 
-    p.add_argument("--ae_hidden", type=int, default=128)
-    p.add_argument("--ae_epochs", type=int, default=5)
-    p.add_argument("--bc_epochs", type=int, default=2)
+    p.add_argument("--ae_hidden", type=int, default=512) #<---- CHANGE! 
+    p.add_argument("--ae_epochs", type=int, default=10)
+    p.add_argument("--bc_epochs", type=int, default=10)
 
-    p.add_argument("--vae_beta", type=float, default=1e-1)#1e-3)
-    p.add_argument("--vae_lr", type=float, default=1e-3)
+    p.add_argument("--vae_beta", type=float, default=1e-3)
+    p.add_argument("--vae_lr", type=float, default=1e-2)
     p.add_argument("--vae_wd", type=float, default=1e-6)
 
     p.add_argument("--ckpt_path", type=str, default="asset/checkpoints/bcconv_latent_final.pt")

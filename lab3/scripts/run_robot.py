@@ -2,6 +2,7 @@
 import time
 from dataclasses import dataclass
 from typing import Optional
+import cv2 
 
 import numpy as np
 import tyro
@@ -42,7 +43,6 @@ def main(args: Args):
         }
 
     env = RobotEnv(robot_client, control_rate_hz=args.hz, camera_dict=camera_clients)
-
     # --- policy ---
     policy = UniversalPolicy()
     policy.reset()
@@ -50,12 +50,14 @@ def main(args: Args):
     dt = 1.0 / args.hz
 
     # RL-style loop
-    obs = env.get_obs()
+    obs = env.step([0.0, -0.8, 0.0, 0.8, 0, 1.0, 0.0, 0.0])#env.get_obs()
     t0 = time.time()
+    #time.sleep(5)
 
     try:
         for step in range(args.max_steps):
             out = policy.step(obs)
+
             action = np.asarray(out.action, dtype=np.float32)
             for step_2 in range(10):
                 #out = policy.step(obs)

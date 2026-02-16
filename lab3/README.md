@@ -11,7 +11,7 @@ By the end of this lab, you will:
 - Study how **model complexity** and **latent dimensionality** affect performance
 - Use learned embeddings inside **Behavior Cloning (BC)**
 - Evaluate performance on:
-  - in-distribution (ID) start states  
+  - in-distribution (ID) start states  python -m scripts.run_robot
   - out-of-distribution (OOD) start states  
 - Deploy best models on the **real robot**
 
@@ -109,9 +109,9 @@ action VAE (Train/Test)
                                  128     256       512 <-- AE hidden dim
 | Latent Dim ↓ / Model Size → | Small | Medium | Large |
 |-----------------------------|-------|--------|-------|
-| Low dim 6                   |0.068533/0.068533|0.062207/0.068533|       |
-| Mid dim 9                   |       |        |       |
-| High dim 12                 |       |        |       |
+| Low dim 6                   |0.068533/0.068533|0.062207/0.068533|0.057150/0.064884|
+| Mid dim 9                   |0.048491/0.053447|0.046081/0.049445|0.044198/0.050640|
+| High dim 12                 |0.045366/0.049193|0.037438/0.041517|0.034804/0.036878|
 
 Ob VAE
                                  128     256       512 <-- AE hidden dim

@@ -227,7 +227,7 @@ def save_model(path, model, stats, model_kwargs):
 if __name__ == "__main__":
 
     train_loader, test_loader, stats = make_loaders(
-        "/home/robot-lab/Downloads/xarm_lift_data",
+        "/home/kyle_golobish/Desktop/Robot_learning/xarm_lift_data",
         obs_h=1,
         pred_h=16,
         batch_size=64,
@@ -248,7 +248,7 @@ if __name__ == "__main__":
 
     model = BCConvMLPPolicy(**model_kwargs).to(device)
 
-    train_bc(model, train_loader, test_loader, device=device, epochs=10)
+    train_bc(model, train_loader, test_loader, device=device, epochs=2)
 
     save_model(
         "asset/checkpoints/bcconv_final.pt",
