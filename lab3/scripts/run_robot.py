@@ -22,7 +22,7 @@ class Args:
     wrist_camera_port: int = 5000
     base_camera_port: int = 5001
     hostname: str = "gadget.stdusr.yale.internal"
-    hz: int = 10
+    hz: int = 2
 
     # debug / dev
     mock: bool = False

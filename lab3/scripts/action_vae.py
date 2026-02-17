@@ -430,19 +430,19 @@ def main():
     p.add_argument("--data_dir", type=str, default="/home/kyle_golobish/Desktop/Robot_learning/xarm_lift_data")
     p.add_argument("--obs_h", type=int, default=2)
     p.add_argument("--pred_h", type=int, default=16)
-    p.add_argument("--batch_size", type=int, default=64)
+    p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--include_images", action="store_true", default=True)
     p.add_argument("--test_ratio", type=float, default=0.1)
     p.add_argument("--num_workers", type=int, default=0)
 
-    p.add_argument("--z_dim", type=int, default=12) #<---- CHANGE! 
+    p.add_argument("--z_dim", type=int, default=6) #<---- CHANGE! 
     p.add_argument("--action_dim", type=int, default=8)
     p.add_argument("--obs_dim", type=int, default=8)
     p.add_argument("--image_type", type=str, default="both", choices=["both", "none"])
 
     p.add_argument("--ae_hidden", type=int, default=512) #<---- CHANGE! 
-    p.add_argument("--ae_epochs", type=int, default=10)
-    p.add_argument("--bc_epochs", type=int, default=10)
+    p.add_argument("--ae_epochs", type=int, default=5)
+    p.add_argument("--bc_epochs", type=int, default=5)
 
     p.add_argument("--vae_beta", type=float, default=1e-3)
     p.add_argument("--vae_lr", type=float, default=1e-2)
@@ -466,7 +466,8 @@ def main():
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    print(device)
+    torch.cuda.empty_cache()
     # -----------------------------
     # build action encoder (AE or VAE)
     # -----------------------------

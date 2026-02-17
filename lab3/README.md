@@ -113,6 +113,15 @@ action VAE (Train/Test)
 | Mid dim 9                   |0.048491/0.053447|0.046081/0.049445|0.044198/0.050640|
 | High dim 12                 |0.045366/0.049193|0.037438/0.041517|0.034804/0.036878|
 
+action BC (Train/Test)
+                                 128     256       512 <-- AE hidden dim
+| Latent Dim ↓ / Model Size → | Small | Medium | Large |
+|-----------------------------|-------|--------|-------|
+| Low dim 6                   |train_mse=0.066371  test_mse=0.075450|train_mse=0.061288  test_mse=0.089267|train_mse=0.056841  test_mse=0.063826|
+| Mid dim 9                   |train_mse=0.074526  test_mse=0.081428|train_mse=0.073396  test_mse=0.083282|train_mse=0.064366  test_mse=0.071869|
+| High dim 12                 |train_mse=0.065036  test_mse=0.072292|train_mse=0.064779  test_mse=0.076732|train_mse=0.075620  test_mse=0.075008|
+
+
 Ob VAE
                                  128     256       512 <-- AE hidden dim
 | Latent Dim ↓ / Model Size → | Small | Medium | Large |

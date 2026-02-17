@@ -2,7 +2,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
-import cv2 
 
 import numpy as np
 
@@ -106,7 +105,7 @@ class UniversalPolicy:
 
         a_mean = self.stats["a_mean"]
         a_std = self.stats["a_std"]
-        print("j un",joints)
+        #print("j un",joints)
         joints_norm = (joints - s_mean)/s_std
         joints_norm = np.expand_dims(joints_norm, axis=(0,1))
 
@@ -126,20 +125,25 @@ class UniversalPolicy:
         #cv2.destroyAllWindows()
         
         #print("jn",joints_norm)
-        print("a",action)
+        #Sprint("a",action)
 
         if self.type == "ACT":
             action = self.action_ae.decode(action)
 
-        if action[:,-1,-1] > 0.2:
-            action[:,-1,-1] = 0.2
+        #if action[:,-1,-1] > 0.2:
+        #    action[:,-1,-1] = 0.2
         action_unnorm = (action.detach().cpu().numpy() * a_std) + a_mean 
-        #print("au",action_unnorm)
+        print(action_unnorm.shape)
+        action_unnorm[:,:,-1] = np.where(action_unnorm[:,:,-1] < 0.25,np.zeros_like(action_unnorm[:,:,-1]),np.ones_like(action_unnorm[:,:,-1]))
+        #action_unnorm[:,:,-1] = np.where(action_unnorm[:,:,-1] < 0.1,np.zeros_like(action_unnorm[:,:,-1]),action_unnorm[:,:,-1])
+        #action_unnorm[:,:,-1] = np.where(action_unnorm[:,:,-1] < 0.05,action_unnorm[:,:,-1],np.ones_like(action_unnorm[:,:,-1]))
+        #np.where(action_unnorm[:,:,-1] >= 0.5,action_unnorm[:,:,-1],np.ones_like(action_unnorm[:,:,-1]))
+        print("au",action_unnorm)
         #print("stats",a_mean,a_std)
 
         #act = action_unnorm[0,0]
 
-        #action_unnorm = np.asarray(obs["joint_positions"], dtype=np.float32)
+        #action_unnorm = np.asarray(obs["joint_positions"], dtype=np.float32)+
 
         #print(obs)
 
@@ -148,4 +152,4 @@ class UniversalPolicy:
         # TODO: replace with your model inference
         #action = joints.copy()  # safe default: hold
 
-        return PolicyOut(action=action_unnorm, info=None)
+        return PolicyOut(action=action_unnorm, info=None)#

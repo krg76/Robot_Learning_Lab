@@ -133,6 +133,7 @@ class ObservationVAE(nn.Module):
             else:
                 obs_image = self._center_crop_96_bhchw(obs_image)
                 obs_wrist_image = self._center_crop_96_bhchw(obs_wrist_image)
+            #print(self.obs_encoder.obs_nets)
             ext = time_distributed(obs_image, self.obs_encoder.obs_nets["external"], inputs_as_kwargs=False)
             wst = time_distributed(obs_wrist_image, self.obs_encoder.obs_nets["wrist"], inputs_as_kwargs=False)
             feats += [ext, wst]  # each (B,Hobs,img_feat_dim)
@@ -412,7 +413,7 @@ def main():
         help="train_vae: train action encoder | train_bc: train BC to predict latent | inference: run forward demo",
     )
 
-    p.add_argument("--data_dir", type=str, default="/home/robot-lab/Downloads/xarm_lift_data")
+    p.add_argument("--data_dir", type=str, default="/home/kyle_golobish/Desktop/Robot_learning/xarm_lift_data")
     p.add_argument("--obs_h", type=int, default=2)
     p.add_argument("--pred_h", type=int, default=16)
     p.add_argument("--batch_size", type=int, default=64)
@@ -433,7 +434,7 @@ def main():
     p.add_argument("--vae_lr", type=float, default=1e-3)
     p.add_argument("--vae_wd", type=float, default=1e-6)
 
-    p.add_argument("--ckpt_path", type=str, default="asset/checkpoints/bcconv_latent_final.pt")
+    p.add_argument("--ckpt_path", type=str, default="asset/checkpoints/bcconv_latent_obs_final.pt")
 
     args = p.parse_args()
 
@@ -455,7 +456,7 @@ def main():
     # -----------------------------
     # build action encoder (AE or VAE)
     # -----------------------------
-    action_ae_kwargs = dict(action_dim=args.action_dim, z_dim=args.z_dim, hidden=args.ae_hidden)
+    action_ae_kwargs = dict(obs_dim=args.obs_dim, z_dim=args.z_dim, hidden=args.ae_hidden)
     obs_vae = ObservationVAE(**action_ae_kwargs).to(device)
 
     # -----------------------------
