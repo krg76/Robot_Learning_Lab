@@ -48,7 +48,7 @@ def load_dir_episodes(data_dir: str) -> Dict:
         - "image": (H, W, 3)
         - "wrist_image": (H, W, 3)
     """
-    episode_files = _list_episode_files(data_dir)
+    episode_files = _list_episode_files(data_dir)#[:5]
 
     # -------------------------
     # First pass: count total T

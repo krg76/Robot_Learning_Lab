@@ -272,6 +272,8 @@ class DiffusionPolicyUNet1D(nn.Module):
         See assignment write-up for full description.
         """
 
+        #print(observations["low_dim_obs"].shape)
+
         # ============================================================
         # TODO 0: Basic bookkeeping
         # ============================================================
@@ -332,12 +334,14 @@ class DiffusionPolicyUNet1D(nn.Module):
         obs_feats = []
         T = t_feat.shape[1]
         if "external" in observations:
-            obs_feats.append(self.time_distributed(observations["external"]))
+            obs_feats.append(time_distributed(observations["external"], self.obs_encoder.obs_nets["external"]))
         if "wrist" in observations:
-            obs_feats.append(self.time_distributed(observations["wrist"]))
+            obs_feats.append(time_distributed(observations["wrist"], self.obs_encoder.obs_nets["wrist"]))
         if "low_dim_obs" in observations:
             obs_low_dim = observations["low_dim_obs"]
-            obs_feats.append(obs_low_dim.unsqueeze(1).expand(B,T,-1))
+            #print(f"obs_low_dim.shape = {obs_low_dim.shape}")
+            obs_feats.append(obs_low_dim)
+        #obs_feats = torch.concat(obs_feats,)
         #raise NotImplementedError
 
 
@@ -346,7 +350,11 @@ class DiffusionPolicyUNet1D(nn.Module):
         # ============================================================
         # obs_enc: [B, T, total_feat_dim]
         # → [B, T * total_feat_dim]
-        obs_enc = obs_enc.reshape(B, -1)
+        enc = []
+        for x in obs_feats:
+            enc.append(x.reshape(B, -1))
+            #print(enc[-1])
+        obs_enc = torch.cat(enc,dim=1)
 
         # ============================================================
         # TODO 6: Combine timestep + observation conditioning
@@ -401,7 +409,6 @@ class DiffusionPolicyUNet1D(nn.Module):
             x = res2(x, cond)
             x = up(x)
 
-        #raise NotImplementedError
 
 
         # ============================================================
@@ -411,7 +418,6 @@ class DiffusionPolicyUNet1D(nn.Module):
         #
         # YOUR CODE HERE
         x = self.final_conv(x)
-        #raise NotImplementedError
 
 
         # ============================================================
@@ -552,9 +558,9 @@ class DiffusionPolicyUNet(nn.Module):
             - Use _random_crop_bhchw(...) during training.
             - Use _center_crop_bhchw(...) during evaluation.
             - Do NOT change dtype or device.
-        """#_random_crop_bhchw, _center_crop_bhchw
+        """
+        #_random_crop_bhchw, _center_crop_bhchw
         # YOUR CODE HERE
-        #raise NotImplementedError
         if img_ext is not None and img_wst is not None:
             if self.training:
                 img_ext =  _random_crop_bhchw(img_ext)

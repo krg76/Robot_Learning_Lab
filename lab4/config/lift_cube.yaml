@@ -1,20 +1,20 @@
 task_name: lift_cube
-data_dir: /home/robot-lab/Downloads/xarm_lift_data
+data_dir: /home/kyle_golobish/Desktop/Robot_learning/xarm_lift_data
 save_model_name: lift_cube
 
-obs_horizon: 2
+obs_horizon: 1
 action_horizon: 4
 pred_horizon: 16
 
 num_diffusion_steps: 100
-epochs: 500
-batch_size: 64
+epochs: 35
+batch_size: 128
 lr: 1.0e-4
 unet_weight_decay: 1.0e-3
 obs_encoder_weight_decay: 1.0e-6
 betas: [0.9, 0.95]
 max_norm: 1.0
-checkpoint_interval: 10
+checkpoint_interval: 5
 
 image_type: both     # "wrist", "external", "both", or "none"
 

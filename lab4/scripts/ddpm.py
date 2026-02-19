@@ -55,7 +55,8 @@ class DiffusionPolicyTrainer:
         seed: int = 42,
         num_inference_steps: int = 10,
         eta: float = 0.0,
-        image_type: str = "both"
+        image_type: str = "both",
+        schedular_type: str = "cosine"
     ):
         super().__init__()
         torch.manual_seed(seed)
@@ -67,6 +68,8 @@ class DiffusionPolicyTrainer:
         self.num_diffusion_steps = num_diffusion_steps
         self.image_type = image_type
         self.data_dir = data_dir
+
+        self.schedular_type = schedular_type
 
         self.task_params = yaml.safe_load(open(f"config/{task_name}.yaml"))
 
@@ -214,8 +217,8 @@ class DiffusionPolicyTrainer:
                 model_name=None,
                 checkpoint_interval = 10):
 
-        train_loader = DataLoader(self.train_ds, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=16, pin_memory=True)
-        val_loader   = DataLoader(self.val_ds,   batch_size=batch_size, shuffle=False, drop_last=False, num_workers=16, pin_memory=True)
+        train_loader = DataLoader(self.train_ds, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=2, pin_memory=True)
+        val_loader   = DataLoader(self.val_ds,   batch_size=batch_size, shuffle=False, drop_last=False, num_workers=2, pin_memory=True)
 
         # Create directory for logging
         os.makedirs("asset/training", exist_ok=True)
@@ -265,12 +268,11 @@ class DiffusionPolicyTrainer:
         # YOUR CODE HERE
         # https://github.com/huggingface/diffusers/blob/main/src/diffusers/optimization.py#L288
         lr_scheduler = get_scheduler(
-            name='cosine',
+            name=self.schedular_type,
             optimizer=optimizer,
             num_warmup_steps=10,
             num_training_steps=10
             )
-        optimizer
         #raise NotImplementedError
 
         # ============================================================
@@ -301,6 +303,7 @@ class DiffusionPolicyTrainer:
         # https://huggingface.co/docs/diffusers/v0.26.2/api/schedulers/ddpm#diffusers.DDPMScheduler.set_timesteps
         self.noise_scheduler.set_timesteps(num_diffusion_steps)
         #raise NotImplementedError
+        mse = nn.MSELoss()
 
         with tqdm(range(num_epochs), desc='Epoch', leave=True) as tglobal:
             for epoch_idx in tglobal:
@@ -371,10 +374,18 @@ class DiffusionPolicyTrainer:
                             #   - lr_scheduler.step() is per optimizer step (not per epoch)
                             #
                             # YOUR CODE HERE
+                        #print(f"naction.shape = {naction.shape}")
+                        noise = torch.randn_like(naction)
+                        t = torch.randint(low=1, high=self.noise_scheduler.config.num_train_timesteps, size=(1,)).to(naction.device)
+                        noisy_actions = self.noise_scheduler.add_noise(naction, noise, t)
+                        pred = self.model(noisy_actions, t, nobs, nimg_ext, nimg_wst)
+                        loss = mse(pred, noise)
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+                        lr_scheduler.step()
+                        ema.step(self.model.parameters())
 
-                            raise NotImplementedError
-
-                        # logging
                         loss_cpu = loss.item()
                         epoch_loss.append(loss_cpu)
                         tepoch.set_postfix(train_loss=loss_cpu)
@@ -394,6 +405,8 @@ class DiffusionPolicyTrainer:
                         # Use EMA weights for validation
                         ema.store(self.model.parameters())  # save current weights
                         ema.copy_to(self.model.parameters())  # load EMA weights
+
+                        #self.model.eval()
 
                         with torch.no_grad():
                             for nobs, nimg_ext, nimg_wst, naction in val_loader:
@@ -449,7 +462,16 @@ class DiffusionPolicyTrainer:
                                 #   - Use .item() to store python floats (not tensors) in val_loss
                                 #
                                 # YOUR CODE HERE
-                                raise NotImplementedError
+                                noise = torch.randn_like(naction)
+                                t = torch.randint(low=1, high=self.noise_scheduler.config.num_train_timesteps, size=(1,)).to(naction.device)
+                                noisy_actions = self.noise_scheduler.add_noise(naction, noise, t)
+                                pred = self.model(noisy_actions, t, nobs, nimg_ext, nimg_wst)
+                                loss = mse(pred, noise)
+                                #optimizer.zero_grad()
+                                #loss.backward()
+                                #optimizer.step()
+                                #lr_scheduler.step()
+                                #ema.step(self.model.parameters())
 
                                 # ============================================================
                                 # TODO: Diffusion sampling loop (reverse process) + action-space evaluation
@@ -498,10 +520,25 @@ class DiffusionPolicyTrainer:
                                 #
                                 # YOUR CODE HERE
                                 # https://huggingface.co/docs/diffusers/v0.26.2/api/schedulers/ddpm#diffusers.DDPMScheduler.step
-                                raise NotImplementedError
+                                rand_act = torch.rand((B,self.pred_horizon,self.action_dim)).to(self.device)
+                                self.noise_scheduler.set_timesteps(num_diffusion_steps)
+
+                                x_curr = rand_act
+
+                                for k in self.noise_scheduler.timesteps:
+                                    noise_pred = self.model(x_curr, k.to(self.device), nobs, nimg_ext, nimg_wst)
+                                    x_curr = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=x_curr).prev_sample
+                                x_0 = x_curr
+                                loss_ = mse(x_0,naction)
+
+                                val_loss.append(loss.cpu())
+                                action_loss.append(loss_.cpu())
+
+                                #raise NotImplementedError
 
                         ema.restore(self.model.parameters())  # restore original weights
-
+                    avg_val_loss = sum(val_loss) /len(val_loss)
+                    avg_action_loss = sum(action_loss)/len(action_loss)
                     tqdm.write(f"Train loss: {np.mean(epoch_loss):.4f}, "
                     f"Val loss: {avg_val_loss:.4f}, "
                     f"Action loss: {avg_action_loss:.4f}")
@@ -556,6 +593,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="Train or test diffusion policy")
     parser.add_argument("--mode", type=str, choices=["train", "inf", "visual"], help="running mode", default="train")
+    parser.add_argument("--iters", type=int, default=100)
+    parser.add_argument("--schedule", type=str,choices=["train", "inf", "visual"])
     parser.add_argument(
         "--config",
         type=str,
@@ -737,8 +776,8 @@ def main():
 
         logger.info("=== VISUALIZATION MODE ===")
 
-        trainer.load_model(args["load_model_name"])
-        trainer.model.eval()
+        # trainer.load_model(args["load_model_name"])
+        # trainer.model.eval()
 
         device = trainer.device
 
@@ -804,7 +843,8 @@ def main():
             #
             # YOUR CODE HERE
             # https://huggingface.co/docs/diffusers/v0.26.2/en/api/schedulers/ddpm#diffusers.DDPMScheduler.add_noise
-            raise NotImplementedError
+            noisy = trainer.ddim_scheduler.add_noise(act.unsqueeze(0),noise.unsqueeze(0),t_batch)
+            #raise NotImplementedError
 
             noisy_actions.append(noisy[0].detach().cpu())
 
@@ -832,7 +872,6 @@ def main():
                 if j == 0:
                     axes[d, j].set_ylabel(f"action[{d}]")
 
-        axes[0, 0].legend()
         plt.tight_layout()
         plt.show()
 

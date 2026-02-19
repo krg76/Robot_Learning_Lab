@@ -27,21 +27,19 @@ This builds intuition about:
 
 ---
 
-## 1. Define a Simple Noise Schedule
-
-Start with a basic cosine beta schedule:
-
-
-## 2. Add Noise to a Trajectory
-
-## 3. Visualize Noising Iterations
-
+## 1. Visualize Noising Iterations
+Add Noise to a Trajectory
 
 ```
 python -m scripts.ddpm --mode visual --config config/lift_cube.yaml
 ```
 
-## 4. Implement Two Additional Noise Schedules
+## 2. Define a Simple Noise Schedule
+
+Start with a basic cosine beta schedule:
+
+
+## 3. Implement Two Additional Noise Schedules
 
 In addition to linear, implement two more schedules.
 
@@ -60,6 +58,7 @@ Answer in your writeup:
 1. How many steps are necessary to turn a trajectory into a random distribution?
 2. How does the noise schedule affect the corruption rate?
 3. What parameters did you change?
+Epochs, Batch size, 
 4. What was their effect on:
    - Speed of corruption?
    - Smoothness of corruption?
