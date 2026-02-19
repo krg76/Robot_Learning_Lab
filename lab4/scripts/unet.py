@@ -289,7 +289,7 @@ class DiffusionPolicyUNet1D(nn.Module):
         #   1D conv expects channels-first format.
         #
         # YOUR CODE HERE
-        
+        sample = torch.transpose(noisy_actions,1,2)
         #raise NotImplementedError
 
 
@@ -308,7 +308,8 @@ class DiffusionPolicyUNet1D(nn.Module):
         # Map timesteps [B] → t_feat [B, t_dim]
         #
         # YOUR CODE HERE
-        raise NotImplementedError
+        t_feat = self.diffusion_step_encoder(timesteps)
+        #raise NotImplementedError
 
 
         # ============================================================
@@ -328,7 +329,16 @@ class DiffusionPolicyUNet1D(nn.Module):
         # Concatenate along last dim.
         #
         # YOUR CODE HERE
-        raise NotImplementedError
+        obs_feats = []
+        T = t_feat.shape[1]
+        if "external" in observations:
+            obs_feats.append(self.time_distributed(observations["external"]))
+        if "wrist" in observations:
+            obs_feats.append(self.time_distributed(observations["wrist"]))
+        if "low_dim_obs" in observations:
+            obs_low_dim = observations["low_dim_obs"]
+            obs_feats.append(obs_low_dim.unsqueeze(1).expand(B,T,-1))
+        #raise NotImplementedError
 
 
         # ============================================================
@@ -352,14 +362,14 @@ class DiffusionPolicyUNet1D(nn.Module):
         # ============================================================
         # TODO 8: UNet Downsampling Path
         # ============================================================
-        # For each (res1, res2, down):
-        #   x = res1(x, cond)
-        #   x = res2(x, cond)
-        #   store skip
-        #   x = down(x)
-        #
+        for res1, res2, down in self.down_modules:
+           x = res1(x, cond)
+           x = res2(x, cond)
+           h.append(x)
+           x = down(x)
+        
         # YOUR CODE HERE
-        raise NotImplementedError
+        #raise NotImplementedError
 
 
         # ============================================================
@@ -369,7 +379,9 @@ class DiffusionPolicyUNet1D(nn.Module):
         #   x = mid(x, cond)
         #
         # YOUR CODE HERE
-        raise NotImplementedError
+        for mid_mod in self.mid_modules:
+            x = mid_mod(x,cond)
+        #raise NotImplementedError
 
 
         # ============================================================
@@ -382,7 +394,14 @@ class DiffusionPolicyUNet1D(nn.Module):
         #   upsample
         #
         # YOUR CODE HERE
-        raise NotImplementedError
+        for (res1, res2, up) in self.up_modules:
+            skip = h.pop()
+            x = torch.cat([x, skip], dim=1)
+            x = res1(x, cond)
+            x = res2(x, cond)
+            x = up(x)
+
+        #raise NotImplementedError
 
 
         # ============================================================
@@ -391,7 +410,8 @@ class DiffusionPolicyUNet1D(nn.Module):
         # Map UNet channels → action_dim channels
         #
         # YOUR CODE HERE
-        raise NotImplementedError
+        x = self.final_conv(x)
+        #raise NotImplementedError
 
 
         # ============================================================
