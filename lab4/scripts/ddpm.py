@@ -594,7 +594,8 @@ def main():
     parser = argparse.ArgumentParser(description="Train or test diffusion policy")
     parser.add_argument("--mode", type=str, choices=["train", "inf", "visual"], help="running mode", default="train")
     parser.add_argument("--iters", type=int, default=100)
-    parser.add_argument("--schedule", type=str,choices=["train", "inf", "visual"])
+    parser.add_argument("--schedule", type=str,choices=["linear", "cosine", "cosine_with_restarts"])
+    parser.add_argument("--savename", type=str)
     parser.add_argument(
         "--config",
         type=str,
@@ -613,9 +614,10 @@ def main():
             data_dir=args["data_dir"],
             pred_horizon=args["pred_horizon"],
             obs_horizon=args["obs_horizon"],
-            num_diffusion_steps=args["num_diffusion_steps"],
+            num_diffusion_steps=cli_args.iters,#args["num_diffusion_steps"],
             image_type=args["image_type"],
-            eta=args["eta"]
+            eta=args["eta"],
+            schedular_type=cli_args.schedule
         )
 
     print(f"Train samples: {len(trainer.train_ds)}, Validation samples: {len(trainer.val_ds)}")
@@ -629,7 +631,7 @@ def main():
 
         # logger.info("=== TRAINING MODE ===")
 
-        save_dir = os.path.dirname(args["save_model_name"])
+        save_dir = os.path.dirname(cli_args.savename)#args["save_model_name"])
         if save_dir and not os.path.exists(save_dir):
             os.makedirs(save_dir, exist_ok=True)
 
@@ -641,11 +643,12 @@ def main():
             obs_encoder_weight_decay=args["obs_encoder_weight_decay"],
             betas=args["betas"],
             num_diffusion_steps=args["num_diffusion_steps"],
-            model_name=args["save_model_name"],
+            model_name=cli_args.savename,#args["save_model_name"],
             checkpoint_interval = args["checkpoint_interval"]
         )
 
-        logger.info(f"Final model saved at {args['save_model_name']}")
+        logger.info(f"Final model saved at {cli_args.savename}")
+        #logger.info(f"Final model saved at {args['save_model_name']}")
 
     elif cli_args.mode == "inf":
 
