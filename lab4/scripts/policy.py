@@ -5,7 +5,16 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from scripts.bc import BCConvMLPPolicy
+#from scripts.bc import BCConvMLPPolicy
+from scripts.unet import DiffusionPolicyUNet
+
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.training_utils import EMAModel
+from diffusers.optimization import get_scheduler
+from diffusers import DDIMScheduler
+
+from scripts.dataset import DiffusionDatasetBoth, load_dir_episodes
+from scripts.unet import DiffusionPolicyUNet
 
 import torch
 
@@ -30,19 +39,42 @@ class UniversalPolicy:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         ckpt = torch.load(
-            "asset/checkpoints/bcconv_final.pt",
+            "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab4/asset/policy/DiT_state_cosine_final.pth",#"asset/checkpoints/bcconv_final.pt",
             map_location=self.device,
             weights_only=False
         )
         self.stats = ckpt["stats"]
-        self.model = BCConvMLPPolicy(**ckpt["model_kwargs"]).to(self.device)
-        self.model.load_state_dict(ckpt["model_state_dict"])
+        self.model = DiffusionPolicyUNet(
+            obs_low_dim=ckpt["meta"]["obs_dim"],
+            action_dim=ckpt["meta"]["action_dim"],
+            obs_horizon=ckpt["meta"]["obs_horizon"],
+            #num_diffusion_steps=ckpt["meta"]["num_diffusion_steps"],#args["num_diffusion_steps"],
+            image_type="both",
+            #eta=0.0,
+            #schedular_type="linear"
+        ).to(self.device)
+        self.model.load_state_dict(ckpt["state_dict"])
         self.model.eval()
 
-        self.obs_horizon = ckpt["model_kwargs"]["obs_horizon"]
+        self.obs_horizon = ckpt["meta"]["obs_horizon"]
         self.state_buffer = []
         self.img_buffer = []
         self.wimg_buffer = []
+
+        self.num_diffusion_steps = ckpt["meta"]["num_diffusion_steps"]
+        self.pred_horizon = ckpt["meta"]["pred_horizon"]
+        self.action_dim = ckpt["meta"]["action_dim"]
+
+        self.noise_scheduler = DDPMScheduler(   
+            num_train_timesteps=self.num_diffusion_steps,
+            # the choise of beta schedule has big impact on performance
+            # we found squared cosine works the best
+            beta_schedule='squaredcos_cap_v2',
+            # clip output to [-1,1] to improve stability
+            clip_sample=True,
+            # our network predicts noise (instead of denoised action)
+            prediction_type='epsilon'
+        )
 
     def reset(self) -> None:
         # TODO: reset hidden state / buffers
@@ -53,38 +85,38 @@ class UniversalPolicy:
         
     def step(self, obs: Dict[str, Any]) -> PolicyOut:
 
-    #   def _center_crop_hwc(img: np.ndarray, crop_h: int = 96, crop_w: int = 96) -> np.ndarray:
-    #       """
-    #       img: (H, W, 3) numpy array
-    #       return: (3, crop_h, crop_w) numpy array (CHW)
-    #       """
-    #       H, W, C = img.shape
-    #       assert C == 3, f"Expected 3 channels, got {C}"
+      def _center_crop_hwc(img: np.ndarray, crop_h: int = 96, crop_w: int = 96) -> np.ndarray:
+          """
+          img: (H, W, 3) numpy array
+          return: (3, crop_h, crop_w) numpy array (CHW)
+          """
+          H, W, C = img.shape
+          assert C == 3, f"Expected 3 channels, got {C}"
 
-    #       if H < crop_h or W < crop_w:
-    #           raise ValueError(f"Image too small to crop: {(H, W)} < {(crop_h, crop_w)}")
+          if H < crop_h or W < crop_w:
+              raise ValueError(f"Image too small to crop: {(H, W)} < {(crop_h, crop_w)}")
 
-    #       top = (H - crop_h) // 2
-    #       left = (W - crop_w) // 2
+          top = (H - crop_h) // 2
+          left = (W - crop_w) // 2
 
-    #       cropped = img[top:top + crop_h, left:left + crop_w, :]  # (96,96,3)
-    #       cropped = np.transpose(cropped, (2, 0, 1))               # (3,96,96)
-    #       return cropped
+          cropped = img[top:top + crop_h, left:left + crop_w, :]  # (96,96,3)
+          cropped = np.transpose(cropped, (2, 0, 1))               # (3,96,96)
+          return cropped
     
       joints = np.asarray(obs["joint_positions"], dtype=np.float32)
       img = np.asarray(obs["base_rgb"], dtype=np.float32)
       wimg = np.asarray(obs["wrist_rgb"], dtype=np.float32)
 
-    #   img = _center_crop_hwc(img, 96, 96)
-    #   wimg = _center_crop_hwc(wimg, 96, 96)
+      img = _center_crop_hwc(img, 96, 96)
+      wimg = _center_crop_hwc(wimg, 96, 96)
 
-      img_mean = self.stats["img_mean"].reshape(3, 1, 1)
-      img_std  = self.stats["img_std"].reshape(3, 1, 1)
+      img_mean = self.stats["img_ext"]["mean"].reshape(3, 1, 1).cpu().numpy()
+      img_std  = self.stats["img_ext"]["std"].reshape(3, 1, 1).cpu().numpy()
 
-      wimg_mean = self.stats["wimg_mean"].reshape(3, 1, 1)
-      wimg_std  = self.stats["wimg_std"].reshape(3, 1, 1)
+      wimg_mean = self.stats["img_wst"]["mean"].reshape(3, 1, 1).cpu().numpy()
+      wimg_std  = self.stats["img_wst"]["std"].reshape(3, 1, 1).cpu().numpy()
 
-      joints = (joints - self.stats["s_mean"])/self.stats["s_std"]
+      joints = (joints - self.stats["obs"]["mean"].cpu().numpy())/self.stats["obs"]["std"].cpu().numpy()
       img = (img - img_mean)/img_std
       wimg = (wimg - wimg_mean)/wimg_std
 
@@ -107,9 +139,25 @@ class UniversalPolicy:
       img_t   = torch.from_numpy(img_seq).unsqueeze(0).to(self.device)    # (1,T,3,96,96)
       wimg_t  = torch.from_numpy(wimg_seq).unsqueeze(0).to(self.device)   # (1,T,3,96,96)
 
-      action = self.model(state_t, img_t, wimg_t)
+      #start from here
+      #print()
+      B = 1
+      rand_act = torch.rand((B,self.pred_horizon,self.action_dim)).to(self.device)
+      self.noise_scheduler.set_timesteps(self.num_diffusion_steps)
+      x_curr = rand_act
+
+      for k in self.noise_scheduler.timesteps:
+        noise_pred = self.model(x_curr, k.to(self.device), state_t, img_t, wimg_t)
+        x_curr = self.noise_scheduler.step(model_output=noise_pred, timestep=k, sample=x_curr).prev_sample
+      action = x_curr
+
+      #print("qewrbuhwgerhi;ou")
+
+      #action = self.model(state_t, img_t, wimg_t)
       action = action.detach().cpu().numpy()
-      action = action * self.stats["a_std"] + self.stats["a_mean"]
+      range_ = self.stats["act"]["max"].cpu().numpy() - self.stats["act"]["min"].cpu().numpy()
+      action = (action + 1) * range_ / 2 + self.stats["act"]["min"].cpu().numpy()
+
 
       # normalize shape to (K, 8)
       action = np.asarray(action, dtype=np.float32)

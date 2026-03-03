@@ -1,0 +1,4 @@
+epoch,train_loss,val_loss,action_loss
+10,1.0408853887269893,tensor(1.0479),tensor(0.8545)
+20,1.04150987987717,tensor(1.0473),tensor(0.8486)
+30,1.0420980536689362,tensor(1.0385),tensor(0.8527)

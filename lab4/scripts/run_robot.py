@@ -22,7 +22,7 @@ class Args:
     wrist_camera_port: int = 5000
     base_camera_port: int = 5001
     hostname: str = "gadget.stdusr.yale.internal"
-    hz: int = 10
+    hz: int = 5
 
     # debug / dev
     mock: bool = False
@@ -51,7 +51,7 @@ def main(args: Args):
     dt = 1.0 / args.hz
 
     # RL-style loop
-    obs = env.get_obs()
+    obs = env.step([0.0, -0.8, 0.0, 0.8, 0, 1.0, 0.0, 0.0])
     t0 = time.time()
 
     try:
@@ -65,7 +65,8 @@ def main(args: Args):
             # execute the whole chunk
             for a in action_seq:
                 a = np.asarray(a, dtype=np.float32).reshape(-1)  # ensure (8,)
-                a = np.asarray([ 0.024528, -0.885107, -0.065961,  0.704097, -0.001534,  0.909635,  0.027596, -0.      ])
+                #a = np.asarray([ 0.024528, -0.885107, -0.065961,  0.704097, -0.001534,  0.909635,  0.027596, -0.      ])
+                time.sleep(0.05)
                 obs = env.step(a)
 
                 if args.print_every > 0 and (step % args.print_every == 0):

@@ -171,6 +171,30 @@ class DiffusionPolicyTrainer:
             img_wst, train_indices, obs_horizon, chunk=1024
         )
 
+        # -------------------------
+        # package everything
+        # -------------------------
+        self.stats = {
+            "obs": {
+                "mean": obs_mean,
+                "std": obs_std,
+            },
+            "act": {
+                "mean": act_mean,
+                "std": act_std,
+                "min": act_min,
+                "max": act_max,
+            },
+            "img_ext": {
+                "mean": img_ext_mean,
+                "std": img_ext_std,
+            } if img_ext_mean is not None else None,
+            "img_wst": {
+                "mean": img_wst_mean,
+                "std": img_wst_std,
+            } if img_wst_mean is not None else None,
+        }
+
         # create datasets sharing stats
         self.train_ds = DiffusionDatasetBoth(
             obs, act,
@@ -535,7 +559,6 @@ class DiffusionPolicyTrainer:
                                 action_loss.append(loss_.cpu())
 
                                 #raise NotImplementedError
-
                         ema.restore(self.model.parameters())  # restore original weights
                     avg_val_loss = sum(val_loss) /len(val_loss)
                     avg_action_loss = sum(action_loss)/len(action_loss)
@@ -578,6 +601,7 @@ class DiffusionPolicyTrainer:
                     "obs_horizon": self.obs_horizon,
                     "num_diffusion_steps": self.num_diffusion_steps,
                 },
+                "stats": self.stats
             },
             path,
         )
@@ -593,9 +617,9 @@ def main():
 
     parser = argparse.ArgumentParser(description="Train or test diffusion policy")
     parser.add_argument("--mode", type=str, choices=["train", "inf", "visual"], help="running mode", default="train")
-    parser.add_argument("--iters", type=int, default=100)
-    parser.add_argument("--schedule", type=str,choices=["linear", "cosine", "cosine_with_restarts"])
-    parser.add_argument("--savename", type=str)
+    #parser.add_argument("--iters", type=int, default=100)
+    #parser.add_argument("--schedule", type=str,choices=["linear", "cosine", "cosine_with_restarts"])
+    #parser.add_argument("--savename", type=str)
     parser.add_argument(
         "--config",
         type=str,
@@ -614,10 +638,10 @@ def main():
             data_dir=args["data_dir"],
             pred_horizon=args["pred_horizon"],
             obs_horizon=args["obs_horizon"],
-            num_diffusion_steps=cli_args.iters,#args["num_diffusion_steps"],
+            num_diffusion_steps=args["num_diffusion_steps"],#cli_args.iters,#args["num_diffusion_steps"],
             image_type=args["image_type"],
             eta=args["eta"],
-            schedular_type=cli_args.schedule
+            schedular_type="cosine"#cli_args.schedule
         )
 
     print(f"Train samples: {len(trainer.train_ds)}, Validation samples: {len(trainer.val_ds)}")
@@ -642,7 +666,7 @@ def main():
             unet_weight_decay=args["unet_weight_decay"],
             obs_encoder_weight_decay=args["obs_encoder_weight_decay"],
             betas=args["betas"],
-            num_diffusion_steps=args["num_diffusion_steps"],
+            num_diffusion_steps=cli_args.iters,#args["num_diffusion_steps"],
             model_name=cli_args.savename,#args["save_model_name"],
             checkpoint_interval = args["checkpoint_interval"]
         )
@@ -666,7 +690,7 @@ def main():
             # --------------------------------------------------
             # 1. Sample one datapoint
             # --------------------------------------------------
-            idx = np.random.randint(len(trainer.train_ds))
+            idx = 3*1024#np.random.randint(len(trainer.train_ds))
             obs, img_ext, img_wst, act_gt = trainer.train_ds[idx]
             obs_np, img_ext_np, img_wst_np, act_gt_np = trainer.train_ds[idx]
 
