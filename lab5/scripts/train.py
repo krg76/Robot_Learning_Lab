@@ -15,6 +15,8 @@ import gymnasium as gym
 import torch
 import matplotlib.pyplot as plt
 
+import gym_xarm
+
 # RL algorithms
 from stable_baselines3 import PPO, SAC
 
@@ -23,6 +25,17 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import BaseCallback
 
+from stable_baselines3.common.env_util import make_vec_env
+
+from stable_baselines3.common.vec_env import VecNormalize
+
+ENVS = [
+    "gym_xarm/XarmLift-v0",#0
+    "gym_xarm/XarmReach-v0",#1
+    "gym_xarm/XarmPickPlaceDense-v0",#2
+    "gym_xarm/XarmPickPlaceSemi-v0",#3
+    "gym_xarm/XarmPickPlaceSparse-v0",#4
+]
 
 # ============================================================
 # Callback for Logging Episode Metrics
@@ -133,6 +146,7 @@ def evaluate(model, env, n_rollouts=10):
         obs = env.reset()
         done = False
         ep_reward = 0
+        #print(done)
 
         while not done:
             # Deterministic=True → no exploration noise
@@ -171,13 +185,22 @@ def main(args):
     #   - Termination conditions
     # The RL algorithm will interact with this environment
     # during training to collect experience.
-    env = gym.make(args.env)
+    #env = gym.make("CartPole-v1", render_mode="rgb_array")
+    env = make_vec_env(
+        args.env,#"MountainCarContinuous-v0",#args.env, 
+        n_envs=16,
+        env_kwargs={"render_mode":"rgb_array"},
+        #monitor_dir=""
+    )
+    env = VecNormalize(env, norm_obs=True, norm_reward=True)
+
+    #env = gym.make(args.env)
 
     # Monitor records episode returns automatically
-    env = Monitor(env)
+    #env = Monitor(env)
 
     # Stable-Baselines3 requires vectorized environment
-    env = DummyVecEnv([lambda: env])
+    #env = DummyVecEnv([lambda: env])
 
     # --------------------------------------------------------
     # Create model
@@ -202,6 +225,14 @@ def main(args):
     # --------------------------------------------------------
     # Evaluate after training
     # --------------------------------------------------------
+    env = make_vec_env(
+        args.env, 
+        n_envs=1, 
+        env_kwargs={"render_mode":"rgb_array"},
+        #monitor_dir=""
+    )
+    env = VecNormalize(env, norm_obs=True, norm_reward=True)
+
     mean_reward, mean_success = evaluate(model, env)
 
     print("Mean reward:", mean_reward)
@@ -239,28 +270,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Environment name (Gym registry)
-    parser.add_argument("--env", type=str, required=True)
+    parser.add_argument("--env", type=str, default=ENVS[1],choices=ENVS)
 
     # Algorithm choice
     parser.add_argument("--algo", type=str, choices=["ppo", "sac"], required=True)
 
     # Training length
-    parser.add_argument("--timesteps", type=int, default=200000)
+    parser.add_argument("--timesteps", type=int, default=100000)
 
     # Learning rate
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--lr", type=float, default=3e-2)
 
     # Discount factor
-    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--gamma", type=float, default=0.985)
 
     # PPO clip parameter: https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html
-    parser.add_argument("--clip_range", type=float, default=0.2)
+    parser.add_argument("--clip_range", type=float, default=0.50)
 
     # SAC entropy regularization: https://stable-baselines3.readthedocs.io/en/master/modules/sac.html
     parser.add_argument(
         "--ent_coef",
         type=str,
-        default="auto",
+        default="auto0.1",
         help="Entropy coefficient for SAC. Examples: 'auto', 'auto_0.1', '0.2'"
     )
 

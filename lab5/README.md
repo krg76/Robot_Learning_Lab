@@ -148,15 +148,15 @@ You will study how parameter choices affect learning.
 ### PPO — Modify
 
 - Clip range
-- Discount factor (γ)
-- Learning rate
+- Discount factor (γ) 0.75
+- Learning rate 3e-5
 - Policy architecture
 
 ### SAC — Modify
 
-- Exploration noise (`ent_coef`)
-- Discount factor (γ)
-- Learning rate
+- Exploration noise (`ent_coef`) Auto0.1
+- Discount factor (γ) 0.75
+- Learning rate 3e-5
 - Policy architecture
 
 ---
