@@ -26,8 +26,7 @@ conda env create -f lab5.yml
 Please pull the gym_xarm repo inside the lab 5 folder and install via
 ```bash
 git clone git@github.com:iqr-lab/gym-xarm.git
-cd gym_xarm
-pip install -e .
+pip install -e . gym-xarm
 ```
 
 run the test script to see all the environments
@@ -148,15 +147,15 @@ You will study how parameter choices affect learning.
 ### PPO — Modify
 
 - Clip range
-- Discount factor (γ) 0.75
-- Learning rate 3e-5
+- Discount factor (γ)
+- Learning rate
 - Policy architecture
 
 ### SAC — Modify
 
-- Exploration noise (`ent_coef`) Auto0.1
-- Discount factor (γ) 0.75
-- Learning rate 3e-5
+- Exploration noise (`ent_coef`)
+- Discount factor (γ)
+- Learning rate
 - Policy architecture
 
 ---
@@ -187,11 +186,28 @@ Submit:
 
 Now you will design **your own reward functions**.
 
+Please pull the panda_gym repo and install from source: https://github.com/qgallouedec/panda-gym
+```bash
+git clone https://github.com/qgallouedec/panda-gym.git
+pip install -e panda-gym
+```
+
+### Using Hindsight Experience Replay (HER) for Long-Horizon Task
+
+For long-horizon tasks, it is often beneficial to use Hindsight Experience Replay (HER) (https://arxiv.org/pdf/1707.01495), which improves learning in sparse-reward settings by relabeling failed trajectories with goals that were actually achieved during the episode.
+
+To make a Gym environment HER-compatible, the following requirements must be satisfied: https://stable-baselines3.readthedocs.io/en/master/modules/her.html
+
+- Dict observation: The environment must return a dictionary observation with three fields: "observation" (the state used by the policy), "achieved_goal" (the current goal state), and "desired_goal" (the target goal). The observation space must be defined as a gym.spaces.Dict with the same structure.
+- Vectorized compute_reward(): The environment must implement compute_reward(achieved_goal, desired_goal, info) that works for both single inputs (goal_dim,) and batched inputs (N, goal_dim).
+- Vectorized is_success(): The environment should provide an is_success() function that checks whether the goal is achieved and supports both single and batched inputs. It is also common to include "is_success" in the info dictionary returned by step().
+- MultiInput policy: Since observations are dictionaries, the agent must use a policy that supports multiple inputs (e.g., 'MultiInputPolicy' in Stable-Baselines3).
+
 ---
 
 ## 1. Define Three Reward Functions
 
-Design reward functions with **different sparsity levels**.
+Design reward functions with **different sparsity levels** in `compute_reward` function in `panda_gym/envs/tasks/pick_and_place.py`
 
 ### Reward 1 — Dense
 

@@ -15,27 +15,21 @@ import gymnasium as gym
 import torch
 import matplotlib.pyplot as plt
 
-import gym_xarm
-
 # RL algorithms
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import HerReplayBuffer, PPO, SAC
 
 # Utilities
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3.common.callbacks import BaseCallback
-
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import configure
+from stable_baselines3.her.goal_selection_strategy import GoalSelectionStrategy
 
-from stable_baselines3.common.vec_env import VecNormalize
+import gymnasium as gym
+import gym_xarm  # registers envs on import
 
-ENVS = [
-    "gym_xarm/XarmLift-v0",#0
-    "gym_xarm/XarmReach-v0",#1
-    "gym_xarm/XarmPickPlaceDense-v0",#2
-    "gym_xarm/XarmPickPlaceSemi-v0",#3
-    "gym_xarm/XarmPickPlaceSparse-v0",#4
-]
+import panda_gym
 
 # ============================================================
 # Callback for Logging Episode Metrics
@@ -93,11 +87,20 @@ def make_model(algo, env, args):
         activation_fn=torch.nn.ReLU  # activation function
     )
 
+    goal_selection_strategy = "future" # equivalent to GoalSelectionStrategy.FUTURE
+
     if algo == "ppo":
         # PPO is on-policy
         model = PPO(
-            "MlpPolicy",
+            # "MlpPolicy",
+            "MultiInputPolicy",
             env,
+            # replay_buffer_class=HerReplayBuffer,
+            # # Parameters for HER
+            # replay_buffer_kwargs=dict(
+            #     n_sampled_goal=4,
+            #     goal_selection_strategy=goal_selection_strategy,
+            # ),
             learning_rate=args.lr,
             gamma=args.gamma,            # discount factor
             clip_range=args.clip_range,  # PPO clipping parameter
@@ -113,9 +116,17 @@ def make_model(algo, env, args):
 
         # SAC is off-policy with entropy regularization
         model = SAC(
-            "MlpPolicy",
+            # "MlpPolicy",
+            "MultiInputPolicy",
             env,
+            replay_buffer_class=HerReplayBuffer,
+            # Parameters for HER
+            replay_buffer_kwargs=dict(
+                n_sampled_goal=4,
+                goal_selection_strategy=goal_selection_strategy,
+            ),
             learning_rate=args.lr,
+            learning_starts=10000,
             gamma=args.gamma,
             ent_coef=ent_coef,
             policy_kwargs=policy_kwargs,
@@ -142,16 +153,18 @@ def evaluate(model, env, n_rollouts=10):
     rewards = []
     success = []
 
-    for _ in range(n_rollouts):
+    for rollout in range(n_rollouts):
+        print(f"Eval rollout {rollout}")
         obs = env.reset()
-        done = False
+        done = np.array([False])
         ep_reward = 0
-        #print(done)
+        # print(done)
 
-        while not done:
+        while not np.all(done):
             # Deterministic=True → no exploration noise
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, done, info = env.step(action)
+            # print(f"done = {done}")
             ep_reward += reward
 
         rewards.append(ep_reward)
@@ -165,6 +178,17 @@ def evaluate(model, env, n_rollouts=10):
 
     return mean_reward, mean_success
 
+def _make_env(env, render_mode):
+    """
+    Helper function that returns a function creating the environment.
+    Required for SubprocVecEnv.
+    """
+    def _init():
+        # env = gym.make("gym_xarm/XarmReach-v0", render_mode=render_mode, max_episode_steps=100)#SET REACH or other thing HEREs
+
+        env = gym.make("PandaPickAndPlace-v3", render_mode=render_mode, max_episode_steps=100, reward_type = "dense")
+        return env
+    return _init
 
 # ============================================================
 # Main Training Function
@@ -185,26 +209,27 @@ def main(args):
     #   - Termination conditions
     # The RL algorithm will interact with this environment
     # during training to collect experience.
-    #env = gym.make("CartPole-v1", render_mode="rgb_array")
-    env = make_vec_env(
-        args.env,#"MountainCarContinuous-v0",#args.env, 
+
+    # create vectorized env
+    vec_env = make_vec_env(
+        _make_env(args.env, "rgb_array"),
         n_envs=16,
-        env_kwargs={"render_mode":"rgb_array"},
-        #monitor_dir=""
+        seed=0,
+        vec_env_cls=SubprocVecEnv
     )
-    env = VecNormalize(env, norm_obs=True, norm_reward=True)
 
-    #env = gym.make(args.env)
-
-    # Monitor records episode returns automatically
-    #env = Monitor(env)
-
-    # Stable-Baselines3 requires vectorized environment
-    #env = DummyVecEnv([lambda: env])
+    # normalize observations and rewards
+    env = VecNormalize(
+        vec_env,
+        norm_obs=True,
+        norm_reward=True,
+        clip_obs=100.0
+    )
 
     # --------------------------------------------------------
     # Create model
     # --------------------------------------------------------
+    
     model = make_model(args.algo, env, args)
 
     callback = MetricsCallback()
@@ -214,6 +239,8 @@ def main(args):
     # --------------------------------------------------------
     # Train
     # --------------------------------------------------------
+    new_logger = configure(f"./{args.log_dir}{args.algo}_{args.env}/", ["stdout", "csv"])
+    model.set_logger(new_logger)
     model.learn(
         total_timesteps=args.timesteps,
         callback=callback
@@ -221,22 +248,19 @@ def main(args):
 
     # Save trained model
     model.save(os.path.join(args.log_dir, f"{args.algo}_{args.env}"))
-
+    
     # --------------------------------------------------------
     # Evaluate after training
     # --------------------------------------------------------
-    env = make_vec_env(
-        args.env, 
-        n_envs=1, 
-        env_kwargs={"render_mode":"rgb_array"},
-        #monitor_dir=""
-    )
-    env = VecNormalize(env, norm_obs=True, norm_reward=True)
+    # print("Evaluating")
+    # model_path = os.path.join(args.log_dir, f"{args.algo}_{args.env}")
+    # model = PPO.load(model_path, env=env)
+    # mean_reward, mean_success = evaluate(model, env)
 
-    mean_reward, mean_success = evaluate(model, env)
+    # print("Mean reward:", mean_reward)
+    # print("Mean success:", mean_success)
 
-    print("Mean reward:", mean_reward)
-    print("Mean success:", mean_success)
+   
 
     # --------------------------------------------------------
     # Plot Reward Curve
@@ -246,7 +270,7 @@ def main(args):
     plt.title("Episode Reward vs Episode")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
-    plt.savefig(os.path.join(args.log_dir, "reward_curve.png"))
+    plt.savefig(os.path.join(args.log_dir, f"{args.algo}_{args.env}/reward_curve.png"))
 
     # --------------------------------------------------------
     # Plot Success Curve (if available)
@@ -257,7 +281,7 @@ def main(args):
         plt.title("Success Rate vs Episode")
         plt.xlabel("Episode")
         plt.ylabel("Success")
-        plt.savefig(os.path.join(args.log_dir, "success_curve.png"))
+        plt.savefig(os.path.join(args.log_dir, f"{args.algo}_{args.env}/success_curve.png"))
 
     print("Plots saved to:", args.log_dir)
 
@@ -270,28 +294,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Environment name (Gym registry)
-    parser.add_argument("--env", type=str, default=ENVS[1],choices=ENVS)
+    parser.add_argument("--env", type=str, required=True)
 
     # Algorithm choice
     parser.add_argument("--algo", type=str, choices=["ppo", "sac"], required=True)
 
     # Training length
-    parser.add_argument("--timesteps", type=int, default=100000)
+    parser.add_argument("--timesteps", type=int, default=1000000)
 
     # Learning rate
-    parser.add_argument("--lr", type=float, default=3e-2)
+    parser.add_argument("--lr", type=float, default=1e-3)
 
     # Discount factor
-    parser.add_argument("--gamma", type=float, default=0.985)
+    parser.add_argument("--gamma", type=float, default=0.95)
 
     # PPO clip parameter: https://stable-baselines3.readthedocs.io/en/master/modules/ppo.html
-    parser.add_argument("--clip_range", type=float, default=0.50)
+    parser.add_argument("--clip_range", type=float, default=0.2)
 
     # SAC entropy regularization: https://stable-baselines3.readthedocs.io/en/master/modules/sac.html
     parser.add_argument(
         "--ent_coef",
         type=str,
-        default="auto0.1",
+        default="auto",
         help="Entropy coefficient for SAC. Examples: 'auto', 'auto_0.1', '0.2'"
     )
 
@@ -303,6 +327,15 @@ if __name__ == "__main__":
         default=[256, 256],
         help="Hidden layer sizes"
     )
+
+    # # Reward type for pick and place
+    # parser.add_argument(
+    #     "reward_type",
+    #     type=str,
+    #     required=False,
+    #     default="dense",
+
+    # )
 
     # Output directory
     parser.add_argument("--log_dir", type=str, default="asset/")
