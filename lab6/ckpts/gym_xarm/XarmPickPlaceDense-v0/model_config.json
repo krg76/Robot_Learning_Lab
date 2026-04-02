@@ -1,0 +1,17 @@
+{
+    "num_iters": 1000,
+    "num_steps_per_iter": 10000,
+    "horizon": 300,
+    "lambda": 0.001,
+    "gae_gamma": 0.99,
+    "gae_lambda": 0.95,
+    "epsilon": 0.001,
+    "max_kl": 0.001,
+    "cg_damping": 0.1,
+    "normalize_advantage": true,
+    "log_file": "pickplace.log",
+    "disc_lr": 0.0001,
+    "grad_clip_norm": 10.0,
+    "ratio_clip": 10.0,
+    "disc_output_min": 1e-08
+}
