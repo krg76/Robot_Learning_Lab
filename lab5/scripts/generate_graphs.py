@@ -1,52 +1,70 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def plot_rl_results(ppo_csv_path, sac_csv_path):
+
+def plot_rl_results(csvs: list):
     # Load CSVs
-    ppo_df = pd.read_csv(ppo_csv_path)
-    sac_df = pd.read_csv(sac_csv_path)
+    ppo_sparse = pd.read_csv(csvs[0])
+    sac_sparse = pd.read_csv(csvs[1])
+    ppo_semi = pd.read_csv(csvs[2])
+    sac_semi = pd.read_csv(csvs[3])
+    ppo_dense = pd.read_csv(csvs[4])
+    sac_dense = pd.read_csv(csvs[5])
 
-    # Use iterations as "epochs"
-    ppo_epochs = ppo_df["time/total_timesteps"]
-    sac_epochs = sac_df["time/total_timesteps"]
+    # Helper to extract safely
+    def get_xy(df):
+        x = df["time/total_timesteps"]
+        y = df["rollout/success_rate"]
+        return x, y
 
-    # Extract metrics
-    ppo_success = ppo_df["rollout/success_rate"]
-    sac_success = sac_df["rollout/success_rate"]
+    # Extract data
+    ppo_sparse_x, ppo_sparse_y = get_xy(ppo_sparse)
+    sac_sparse_x, sac_sparse_y = get_xy(sac_sparse)
 
-    ppo_reward = ppo_df["rollout/ep_rew_mean"]
-    sac_reward = sac_df["rollout/ep_rew_mean"]
+    ppo_semi_x, ppo_semi_y = get_xy(ppo_semi)
+    sac_semi_x, sac_semi_y = get_xy(sac_semi)
 
-    # ---- Plot 1: Epochs vs Success Rate ----
-    plt.figure(figsize=(8, 5))
-    plt.plot(ppo_epochs, ppo_success, label="PPO", linewidth=2)
-    plt.plot(sac_epochs, sac_success, label="SAC", linewidth=2)
-    plt.xlabel("Epochs (Iterations)")
+    ppo_dense_x, ppo_dense_y = get_xy(ppo_dense)
+    sac_dense_x, sac_dense_y = get_xy(sac_dense)
+
+    # ---- Plot: Epochs vs Success Rate (6 lines) ----
+    plt.figure(figsize=(10, 6))
+
+    # Dense
+    plt.plot(ppo_dense_x, ppo_dense_y, label="PPO (Dense)", linewidth=2)
+    plt.plot(sac_dense_x, sac_dense_y, label="SAC (Dense)", linewidth=2)
+
+    # Semi
+    plt.plot(ppo_semi_x, ppo_semi_y, label="PPO (Semi)", linestyle="--", linewidth=2)
+    plt.plot(sac_semi_x, sac_semi_y, label="SAC (Semi)", linestyle="--", linewidth=2)
+
+    # Sparse
+    plt.plot(ppo_sparse_x, ppo_sparse_y, label="PPO (Sparse)", linestyle=":", linewidth=2)
+    plt.plot(sac_sparse_x, sac_sparse_y, label="SAC (Sparse)", linestyle=":", linewidth=2)
+
+    plt.xlabel("Timesteps")
     plt.ylabel("Success Rate")
-    plt.title("Epochs vs Success Rate")
+    plt.title("Success Rate vs Timesteps (PPO vs SAC across reward types)")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("success_rate_plot.png")
-    plt.show()
 
-    # ---- Plot 2: Epochs vs Reward ----
-    plt.figure(figsize=(8, 5))
-    plt.plot(ppo_epochs, ppo_reward, label="PPO", linewidth=2)
-    plt.plot(sac_epochs, sac_reward, label="SAC", linewidth=2)
-    plt.xlabel("Epochs (Iterations)")
-    plt.ylabel("Mean Reward")
-    plt.title("Epochs vs Mean Reward")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig("reward_plot_semi_pnp.png")
+    plt.savefig("success_rate_all.png")
     plt.show()
 
 
 if __name__ == "__main__":
-    # Replace with your actual file paths
-    ppo_csv = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/ppo_gym_xarm/XarmPickPlaceSemi-v0/progress.csv"
-    sac_csv = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/sac_gym_xarm/XarmPickPlaceSemi-v0/progress.csv"
+    ppo_csv_sparse = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/ppo_gym_xarm/XarmPickPlaceSparse-v0/progress.csv"
+    sac_csv_sparse = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/sac_gym_xarm/XarmPickPlaceSparse-v0/progress.csv"
+    ppo_csv_semi = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/ppo_gym_xarm/XarmPickPlaceSemi-v0/progress.csv"
+    sac_csv_semi = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/sac_gym_xarm/XarmPickPlaceSemi-v0/progress.csv"
+    ppo_csv_dense = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/ppo_gym_xarm/XarmPickPlaceDense-v0/progress.csv"
+    sac_csv_dense = "/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/sac_gym_xarm/XarmPickPlaceDense-v0/progress.csv"
 
-    plot_rl_results(ppo_csv, sac_csv)
+    csvs = [
+        ppo_csv_sparse, sac_csv_sparse,
+        ppo_csv_semi, sac_csv_semi,
+        ppo_csv_dense, sac_csv_dense
+    ]
+
+    plot_rl_results(csvs)

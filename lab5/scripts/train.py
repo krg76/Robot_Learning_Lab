@@ -31,7 +31,7 @@ import gym_xarm  # registers envs on import
 
 # import panda_gym
 
-ENV_NAME = "gym_xarm/XarmPickPlaceSparse-v0"#"gym_xarm/XarmPickPlaceDense-v0"
+ENV_NAME = "gym_xarm/XarmPickPlaceDense-v0"#"gym_xarm/XarmPickPlaceDense-v0"
 #"gym_xarm/XarmPickPlaceDense-v0"
 
 # ============================================================
@@ -123,7 +123,7 @@ def make_model(algo, env, args):
             #"MultiInputPolicy",
             env,
             verbose=1,
-            learning_rate=3e-4,
+            learning_rate=3e-3,#OLD:3e-4,
             buffer_size=1_000_000,
             batch_size=256,
             tau=0.005,
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, choices=["ppo", "sac"], required=True)
 
     # Training length
-    parser.add_argument("--timesteps", type=int, default=1000000)
+    parser.add_argument("--timesteps", type=int, default=5000000)
 
     # Learning rate
     parser.add_argument("--lr", type=float, default=1e-3)

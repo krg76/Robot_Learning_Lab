@@ -17,8 +17,8 @@ pick_locations = {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, required=True)
-    parser.add_argument("--robot-ip", type=str, required=True)
+    parser.add_argument("--model-path", type=str, default="/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset/ppo_gym_xarm/XarmPickPlaceDense-v0.zip")
+    parser.add_argument("--robot-ip", type=str, default = "192.168.1.216")
     parser.add_argument("--episodes", type=int, default=5)
     args = parser.parse_args()
 
