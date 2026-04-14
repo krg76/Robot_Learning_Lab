@@ -8,10 +8,11 @@ import gym_xarm  # registers envs on import
 
 import time
 
+import train
 
 ENVS = [
-    "gym_xarm/XarmLift-v0",
-    "gym_xarm/XarmReach-v0",
+    #"gym_xarm/XarmLift-v0",
+    #"gym_xarm/XarmReach-v0",
     "gym_xarm/XarmPickPlaceDense-v0",
     "gym_xarm/XarmPickPlaceSemi-v0",
     "gym_xarm/XarmPickPlaceSparse-v0",
@@ -29,11 +30,17 @@ def run_env(env_id: str, render_mode: str, steps: int, episodes: int, out_dir: s
         first = env.render()
         if render_mode == "rgb_array" and first is not None:
             frames.append(first)
+    
+    model_path = os.path.join("/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset", "ppo_" + env_id + ".zip")
+    model = train.make_model("ppo",env_id,None)
+    model.load(model_path)
 
     ep = 0
     t = 0
+    action = env.action_space.sample()
+    obs, reward, terminated, truncated, info = env.step(action)
     while ep < episodes and t < steps:
-        action = env.action_space.sample()
+        action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = env.step(action)
 
         if render_mode in ("human", "rgb_array"):
@@ -50,6 +57,21 @@ def run_env(env_id: str, render_mode: str, steps: int, episodes: int, out_dir: s
         t += 1
 
     env.close()
+
+    print(frames)
+
+    if render_mode == "rgb_array" and out_dir is not None and len(frames) > 0:
+        import imageio
+        os.makedirs(out_dir, exist_ok=True)
+
+        video_path = os.path.join(out_dir, f"{env_id.replace('/', '_')}_PPO.mp4")
+
+        print(f"Saving video to: {video_path}")
+
+        with imageio.get_writer(video_path, fps=30) as writer:
+            for frame in frames:
+                writer.append_data(frame)
+
     # (video saving code unchanged)
     print(f"Done: {env_id}")
 
@@ -67,12 +89,12 @@ def main():
     parser.add_argument(
         "--out_dir",
         type=str,
-        default=None,
+        default="/home/kyle_golobish/Desktop/Robot_learning/Robot_Learning_Lab/lab5/scripts/asset",
         help="If set and render=rgb_array, save an MP4 per env to this directory.",
     )
     args = parser.parse_args()
 
-    render_mode = None if args.render == "none" else args.render
+    render_mode = "rgb_array"
 
     print("Testing environments:")
     for e in ENVS:

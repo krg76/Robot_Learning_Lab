@@ -86,7 +86,7 @@ def make_model(algo, env, args):
 
     # Define neural network architecture for policy
     policy_kwargs = dict(
-        net_arch=args.policy_arch,   # e.g., [256, 256]
+        net_arch=[256, 256],   # e.g., [256, 256]
         activation_fn=torch.nn.ReLU  # activation function
     )
 
@@ -104,16 +104,16 @@ def make_model(algo, env, args):
             #     n_sampled_goal=4,
             #     goal_selection_strategy=goal_selection_strategy,
             # ),
-            learning_rate=args.lr,
-            gamma=args.gamma,            # discount factor
-            clip_range=args.clip_range,  # PPO clipping parameter
+            learning_rate=1e-3,#args.lr,
+            gamma=0.95,#args.gamma,            # discount factor
+            clip_range=0.2,#args.clip_range,  # PPO clipping parameter
             policy_kwargs=policy_kwargs,
             verbose=1,
         )
 
     elif algo == "sac":
         # Convert ent_coef if numeric
-        ent_coef = args.ent_coef
+        ent_coef = "auto"
         if ent_coef not in ["auto"] and not ent_coef.startswith("auto"):
             ent_coef = float(ent_coef)
 
