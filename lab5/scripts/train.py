@@ -29,7 +29,10 @@ from stable_baselines3.her.goal_selection_strategy import GoalSelectionStrategy
 import gymnasium as gym
 import gym_xarm  # registers envs on import
 
-import panda_gym
+# import panda_gym
+
+ENV_NAME = "gym_xarm/XarmPickPlaceSparse-v0"#"gym_xarm/XarmPickPlaceDense-v0"
+#"gym_xarm/XarmPickPlaceDense-v0"
 
 # ============================================================
 # Callback for Logging Episode Metrics
@@ -92,8 +95,8 @@ def make_model(algo, env, args):
     if algo == "ppo":
         # PPO is on-policy
         model = PPO(
-            # "MlpPolicy",
-            "MultiInputPolicy",
+            "MlpPolicy",
+            #"MultiInputPolicy",
             env,
             # replay_buffer_class=HerReplayBuffer,
             # # Parameters for HER
@@ -116,23 +119,19 @@ def make_model(algo, env, args):
 
         # SAC is off-policy with entropy regularization
         model = SAC(
-            # "MlpPolicy",
-            "MultiInputPolicy",
+            "MlpPolicy",
+            #"MultiInputPolicy",
             env,
-            replay_buffer_class=HerReplayBuffer,
-            # Parameters for HER
-            replay_buffer_kwargs=dict(
-                n_sampled_goal=4,
-                goal_selection_strategy=goal_selection_strategy,
-            ),
-            learning_rate=args.lr,
-            learning_starts=10000,
-            gamma=args.gamma,
-            ent_coef=ent_coef,
-            policy_kwargs=policy_kwargs,
             verbose=1,
+            learning_rate=3e-4,
+            buffer_size=1_000_000,
+            batch_size=256,
+            tau=0.005,
+            gamma=0.99,
+            train_freq=1,
+            gradient_steps=16,
+            ent_coef="auto",   # 🔥 important
         )
-
     else:
         raise ValueError("Unsupported algorithm")
 
@@ -178,15 +177,11 @@ def evaluate(model, env, n_rollouts=10):
 
     return mean_reward, mean_success
 
-def _make_env(env, render_mode):
-    """
-    Helper function that returns a function creating the environment.
-    Required for SubprocVecEnv.
-    """
+def make_env():
     def _init():
-        # env = gym.make("gym_xarm/XarmReach-v0", render_mode=render_mode, max_episode_steps=100)#SET REACH or other thing HEREs
-
-        env = gym.make("PandaPickAndPlace-v3", render_mode=render_mode, max_episode_steps=100, reward_type = "dense")
+        env = gym.make(ENV_NAME)#"gym_xarm/XarmPickPlaceDense-v0")
+        # env = gym.make("gym_xarm/XarmReach-v0")  
+        env = Monitor(env)
         return env
     return _init
 
@@ -211,20 +206,22 @@ def main(args):
     # during training to collect experience.
 
     # create vectorized env
-    vec_env = make_vec_env(
-        _make_env(args.env, "rgb_array"),
-        n_envs=16,
-        seed=0,
-        vec_env_cls=SubprocVecEnv
-    )
+    # vec_env = make_vec_env(
+    #     _make_env(args.env, "rgb_array"),
+    #     n_envs=16,
+    #     seed=0,
+    #     vec_env_cls=SubprocVecEnv
+    # )
 
-    # normalize observations and rewards
-    env = VecNormalize(
-        vec_env,
-        norm_obs=True,
-        norm_reward=True,
-        clip_obs=100.0
-    )
+    # # normalize observations and rewards
+    # env = VecNormalize(
+    #     vec_env,
+    #     norm_obs=True,
+    #     norm_reward=True,
+    #     clip_obs=100.0
+    # )
+
+    env = SubprocVecEnv([make_env() for _ in range(16)])
 
     # --------------------------------------------------------
     # Create model
@@ -247,6 +244,7 @@ def main(args):
     )
 
     # Save trained model
+    os.makedirs(os.path.join(args.log_dir, f"{args.algo}_{args.env}"), exist_ok=True)
     model.save(os.path.join(args.log_dir, f"{args.algo}_{args.env}"))
     
     # --------------------------------------------------------
@@ -294,7 +292,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # Environment name (Gym registry)
-    parser.add_argument("--env", type=str, required=True)
+    parser.add_argument("--env", type=str, default=ENV_NAME)
 
     # Algorithm choice
     parser.add_argument("--algo", type=str, choices=["ppo", "sac"], required=True)
