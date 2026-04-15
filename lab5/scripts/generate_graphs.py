@@ -31,16 +31,16 @@ def plot_rl_results(csvs: list):
     plt.figure(figsize=(10, 6))
 
     # Dense
-    plt.plot(ppo_dense_x, ppo_dense_y, label="PPO (Dense)", linewidth=2)
+    #plt.plot(ppo_dense_x, ppo_dense_y, label="PPO (Dense)", linewidth=2)
     plt.plot(sac_dense_x, sac_dense_y, label="SAC (Dense)", linewidth=2)
 
     # Semi
-    plt.plot(ppo_semi_x, ppo_semi_y, label="PPO (Semi)", linestyle="--", linewidth=2)
-    plt.plot(sac_semi_x, sac_semi_y, label="SAC (Semi)", linestyle="--", linewidth=2)
+    #plt.plot(ppo_semi_x, ppo_semi_y, label="PPO (Semi)", linestyle="--", linewidth=2)
+    #plt.plot(sac_semi_x, sac_semi_y, label="SAC (Semi)", linestyle="--", linewidth=2)
 
     # Sparse
-    plt.plot(ppo_sparse_x, ppo_sparse_y, label="PPO (Sparse)", linestyle=":", linewidth=2)
-    plt.plot(sac_sparse_x, sac_sparse_y, label="SAC (Sparse)", linestyle=":", linewidth=2)
+    #plt.plot(ppo_sparse_x, ppo_sparse_y, label="PPO (Sparse)", linestyle=":", linewidth=2)
+    #plt.plot(sac_sparse_x, sac_sparse_y, label="SAC (Sparse)", linestyle=":", linewidth=2)
 
     plt.xlabel("Timesteps")
     plt.ylabel("Success Rate")
@@ -49,7 +49,7 @@ def plot_rl_results(csvs: list):
     plt.grid(True)
     plt.tight_layout()
 
-    plt.savefig("success_rate_all.png")
+    plt.savefig("success_rate_all_2.png")
     plt.show()
 
 
