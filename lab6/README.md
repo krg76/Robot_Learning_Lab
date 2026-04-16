@@ -18,7 +18,7 @@ Create the conda environment:
 
 ```bash
 conda env create -f lab6.yml
-conda activate lab6
+conda activate lab5
 ```
 
 Install the xArm gym environment:
@@ -32,7 +32,7 @@ pip install -e .
 Verify the environment renders correctly:
 
 ```bash
-MUJOCO_GL=glfw python scripts/test_expert.py
+MUJOCO_GL=glfw python scripts/test_gym_xarm.py --render human --steps 500 --episodes 2
 ```
 
 > Hit Tab once when the sim appears if the camera is not aligned, to switch the camera view.
@@ -83,15 +83,11 @@ Implement this combined loss and call `.backward()` and `.step()`.
 
 ### 2. Sample Actions from the Generator Policy
 
-In `models/gail.py`, inside the `act()` function, implement how actions are sampled from the policy:
+In `models/gail.py`, inside the trajectory collection loop, the generator policy (`self.pi`) must produce actions given observations.
 
-- Call `self.pi(state)` to get the action distribution
-- Sample using `.sample()`
-- Detach and convert to numpy
-- Remove the batch dimension
-- Clip actions to [-1, 1]
-
-This function is used during trajectory collection.
+- Call `self.pi(obs)` to get the distribution
+- Sample from it using `.sample()`
+- Detach and convert to numpy for `env.step()`
 
 ### 3. Initialize Generator, Discriminator, and Value Networks
 
@@ -105,27 +101,19 @@ These classes are defined in `models/nets.py`.
 
 ---
 
-### Run Training
-
-You must specify how to obtain demonstrations:
+## Running Training
 
 ```bash
-# Option 1: Use SAC expert (recommended)
-python scripts/train.py --use_sac
-
-# Option 2: Use saved demonstrations
-python scripts/train.py --load_demos --demo_path ckpts/<env>/sac_demos.npz
+python scripts/train.py --env_name CartPole-v1
 ```
 
 Supported environments:
 
-| Environment                     | Type       |
-|---------------------------------|------------|
-| `CartPole-v1`                   | Discrete   |
-| `Pendulum-v0`                   | Continuous |
-| `BipedalWalker-v3`              | Continuous |
-| `gym_xarm/XarmPickPlaceDense-v0`| Continuous |
-| `gym_xarm/XarmReach-v0`         | Continuous |
+| Environment       | Type       |
+|-------------------|------------|
+| `CartPole-v1`     | Discrete   |
+| `Pendulum-v0`     | Continuous |
+| `BipedalWalker-v3`| Continuous |
 
 Checkpoints are saved to `ckpts/<env_name>/`:
 
@@ -145,18 +133,18 @@ Training logs are written to `logs/` and can be plotted with `scripts/plot.py`.
 
 # Part 2 — Visualize Training in Simulation
 
-Using pre-collected demonstration data for **reach**, train the GAIL model and evaluate it in simulation.
+Using pre-collected demonstration data for **pick-and-place**, train the GAIL model and evaluate it in simulation.
 
 ### Train the Model
 
 ```bash
-python scripts/train.py --use_sac
+python scripts/train.py --env_name CartPole-v1
 ```
 
 ### Plot Training Metrics
 
 ```bash
-python scripts/plot.py -l logs/reach.log -o plots/reach_training.png
+python scripts/plot.py -l logs/cartpole.log -o plots/cartpole_training.png
 ```
 
 The plot script generates four panels:
@@ -199,6 +187,12 @@ After achieving good performance in simulation, perform **sim-to-real testing**.
 1. Verify simulation rollouts look safe and consistent
 2. Transfer the trained policy checkpoint to the robot deployment system
 3. Run the policy on the physical robot for the pick-and-place task
+
+```bash
+python -m scripts.run_gail_xarm_real \
+  --model-path policies/gail_ppo_pickplace \
+  --robot-ip 192.168.1.216
+```
 
 ### Deliverable — Video
 

@@ -1,5 +1,5 @@
 {
-    "num_iters": 30,
+    "num_iters": 1000,
     "num_steps_per_iter": 5000,
     "horizon": 300,
     "lambda": 0.001,

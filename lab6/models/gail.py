@@ -61,9 +61,9 @@ class GAIL(Module):
         #
         # Use appropriate input/output dimensions.
         # ============================================================
-        self.pi = PolicyNetwork(state_dim=self.state_dim, action_dim=self.action_dim, discrete=self.discrete)
-        self.v = ValueNetwork(state_dim=self.state_dim)
-        self.d = Discriminator(state_dim=self.state_dim, action_dim=self.action_dim, discrete=self.discrete)
+        self.pi = None
+        self.v = None
+        self.d = None
 
     def get_networks(self):
         return [self.pi, self.v]
@@ -77,9 +77,6 @@ class GAIL(Module):
 
         distb = self.pi(state)
 
-
-        # print(f"distb = {distb}")
-
         # ============================================================
         # TODO (Students):
         # Sample action from distb and process it:
@@ -88,11 +85,7 @@ class GAIL(Module):
         #   3. squeeze batch dimension
         #   4. clip to [-1, 1]
         # ============================================================
-        action = distb.sample()
-        action = action.detach().cpu().numpy()
-        action = np.squeeze(action, axis=0)
-        action = np.clip(action, -1, 1)
-
+        action = None
 
         return action
 
@@ -120,7 +113,6 @@ class GAIL(Module):
                     env.render()
 
                 ob, rwd, terminated, truncated, info = env.step(act)
-                # print(info)
                 done = terminated or truncated
 
                 ep_rwds.append(rwd)
@@ -200,7 +192,6 @@ class GAIL(Module):
         render=False,
         test_env=None,
     ):
-        print(type(env))
         num_iters = self.train_config["num_iters"]
         num_steps_per_iter = self.train_config["num_steps_per_iter"]
         horizon = self.train_config["horizon"]
@@ -361,14 +352,7 @@ class GAIL(Module):
             #     )
             # )
             # ============================================================
-            loss = (
-                torch.nn.functional.binary_cross_entropy_with_logits(
-                    input=exp_scores, target=torch.zeros_like(exp_scores)
-                )
-                + torch.nn.functional.binary_cross_entropy_with_logits(
-                    nov_scores, torch.ones_like(nov_scores)
-                )
-            )
+            loss = None
             
             loss.backward()
             opt_d.step()
@@ -487,43 +471,5 @@ class GAIL(Module):
                 metrics["disc_loss_generated"],
                 metrics["gen_test_reward_mean"],
             )
-
-
-        
-        t = 0
-        done = False
-        ob, info = eval_env.reset()
-        
-        success = 0
-        num_steps = 1000
-        for _ in range(100):
-            t = 0
-            done = False
-            ob, info = eval_env.reset()
-            while not done and steps < num_steps:
-                act = self.act(ob)
-                act = np.asarray(act, dtype=np.float32).reshape(-1)
-
-                if render:
-                    eval_env.render()
-
-                ob, rwd, terminated, truncated, info = eval_env.step(act)
-                # print(info)
-                done = terminated or truncated
-
-                ep_rwds.append(rwd)
-                t += 1
-                steps += 1
-
-                if horizon is not None and t >= horizon:
-                    done = True
-                    break
-
-
-            # print(info)
-            if info.get("is_success", False):
-                success += 1
-
-        print(f"Success rate = {success / 1000}")
 
         return rwd_iter_means

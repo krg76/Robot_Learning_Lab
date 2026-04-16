@@ -54,7 +54,7 @@
         "disc_output_min": 1e-8
     },
     "gym_xarm/XarmReach-v0": {
-        "num_iters": 30,
+        "num_iters": 1000,
         "num_steps_per_iter": 5000,
         "horizon": 300,
         "lambda": 1e-3,
