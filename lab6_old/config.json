@@ -1,0 +1,69 @@
+{
+    "CartPole-v1": {
+        "num_iters": 200,
+        "num_steps_per_iter": 2000,
+        "horizon": null,
+        "lambda": 1e-3,
+        "gae_gamma": 0.99,
+        "gae_lambda": 0.99,
+        "epsilon": 0.01,
+        "max_kl": 0.01,
+        "cg_damping": 0.1,
+        "normalize_advantage": true,
+        "log_file": "cartpole.log"
+    },
+    "Pendulum-v0": {
+        "num_iters": 500,
+        "num_steps_per_iter": 2000,
+        "horizon": null,
+        "lambda": 1e-3,
+        "gae_gamma": 0.99,
+        "gae_lambda": 0.99,
+        "epsilon": 0.01,
+        "max_kl": 0.01,
+        "cg_damping": 0.1,
+        "normalize_advantage": true
+    },
+    "BipedalWalker-v3": {
+        "num_iters": 1000,
+        "num_steps_per_iter": 5000,
+        "horizon": null,
+        "lambda": 1e-3,
+        "gae_gamma": 0.99,
+        "gae_lambda": 0.99,
+        "epsilon": 0.01,
+        "max_kl": 0.01,
+        "cg_damping": 0.1,
+        "normalize_advantage": true
+    },
+    "gym_xarm/XarmPickPlaceDense-v0": {
+        "num_iters": 1000,
+        "num_steps_per_iter": 10000,
+        "horizon": 300,
+        "lambda": 1e-3,
+        "gae_gamma": 0.99,
+        "gae_lambda": 0.95,
+        "epsilon": 0.001,
+        "max_kl": 0.001,
+        "cg_damping": 0.1,
+        "normalize_advantage": true,
+        "log_file": "pickplace.log",
+        "disc_lr": 1e-4,
+        "grad_clip_norm": 10.0,
+        "ratio_clip": 10.0,
+        "disc_output_min": 1e-8
+    },
+    "gym_xarm/XarmReach-v0": {
+        "num_iters": 30,
+        "num_steps_per_iter": 5000,
+        "horizon": 300,
+        "lambda": 1e-3,
+        "gae_gamma": 0.99,
+        "gae_lambda": 0.95,
+        "epsilon": 0.001,
+        "max_kl": 0.001,
+        "cg_damping": 0.1,
+        "normalize_advantage": true,
+        "log_file": "reach.log"
+    }
+}
