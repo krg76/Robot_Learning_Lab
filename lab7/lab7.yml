@@ -1,0 +1,24 @@
+name: lab7
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.10
+  - libstdcxx-ng
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.1
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - gymnasium
+  - mujoco
+  - pip
+  - pip:
+      - stable-baselines3
+      - tensorboard
+      - tqdm
+      - imageio
+      - xarm-python-sdk
