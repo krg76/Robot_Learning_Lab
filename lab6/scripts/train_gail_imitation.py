@@ -32,7 +32,7 @@ SEED = 42
 ENV_NAME = "gym_xarm/XarmPickPlaceDense-v0"
 SAC_MODEL_PATH = "experts/sac_pickplace"
 
-SAVE_PATH = "policies/gail_ppo_pickplace_3_50_2"
+SAVE_PATH = "policies/gail_ppo_pickplace_3_50"
 
 N_ENVS = 8
 N_EXPERT_EPISODES = 240#120#60
